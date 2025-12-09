@@ -115,10 +115,11 @@
     </div>
 
     <script>
-        // 🔧 CONFIGURACIÓN
+        // 🔧 CONFIGURACIÓN - URLs Y CREDENCIALES CORREGIDAS
         const TOKEN = '2205';
         const ADMIN_PASSWORD = '2205';
-        const BASE_URL = 'https://pagina-web-g82d.onrender.com'; // Backend de Render
+        // ✅ URL CORREGIDA - Backend real de Render
+        const BASE_URL = 'https://administrador-63nc.onrender.com';
 
         // 📋 VARIABLES GLOBALES
         let contactos = [];
@@ -139,7 +140,7 @@
             }
         }
 
-        // 🔗 FUNCIONES DE API - CORREGIDAS
+        // 🔗 FUNCIONES DE API - CORREGIDAS PARA RENDER
         async function apiRequest(endpoint, method = 'GET', data = null) {
             try {
                 const options = {
@@ -153,7 +154,7 @@
                     options.body = JSON.stringify(data);
                 }
                 
-                // ✅ CORRECCIÓN: Token como parámetro de query
+                // ✅ CORRECCIÓN: Token como parámetro de query + URL correcta
                 const url = `${BASE_URL}/admin/${endpoint}?token=${TOKEN}`;
                 const response = await fetch(url, options);
                 const result = await response.json();
