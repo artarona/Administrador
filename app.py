@@ -3,12 +3,13 @@
 🚀 SISTEMA DE ALMACENAMIENTO POSTGRESQL - BACKEND RENDER
 ================================================================
 
-Versión optimizada para Render.com con PostgreSQL
-Almacenamiento robusto y escalable en la nube
+Versión con múltiples fallbacks para DATABASE_URL
+Compatible con Render.com y bases de datos en la nube
+Configurado para servir frontend desde la raíz
 """
 
 import os
-from flask import Flask, request, jsonify, send_file
+from flask import Flask, request, jsonify, send_file, send_from_directory
 from flask_cors import CORS
 import pandas as pd
 import psycopg2
@@ -18,7 +19,7 @@ from datetime import datetime
 import logging
 import time
 
-# Configuración de logging
+# Configuración de logging detallada
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(levelname)s - %(message)s',
@@ -27,497 +28,470 @@ logging.basicConfig(
 
 app = Flask(__name__)
 
-# Configuración CORS para dominio personalizado
+# 🔧 CONFIGURACIÓN CORS PARA FRONTEND EN LA RAÍZ
 CORS(app, origins=[
-    "https://dantepropiedades.com.ar",
-    "https://danterealestate.github.io",
+    "https://pagina-web-g82d.onrender.com",  # Frontend principal
+    "https://danterealestate-github-io.onrender.com",  # Frontend alternativo
     "http://localhost:3000",
-    "http://localhost:8000"
+    "http://localhost:8000",
+    "http://localhost:5000"
 ])
 
-# Configuración desde variables de entorno
-ADMIN_TOKEN = os.environ.get('ADMIN_TOKEN', '2205')
-DATABASE_URL = os.environ.get('DATABASE_URL')
+# 🔍 DIAGNÓSTICO COMPLETO DE VARIABLES DE ENTORNO
+print("🔍 DIAGNÓSTICO DE VARIABLES DE ENTORNO")
+print("=" * 50)
+
+# Verificar todas las variables posibles
+admin_token_env = os.environ.get('ADMIN_TOKEN')
+database_url_env = os.environ.get('DATABASE_URL')
+flask_env_env = os.environ.get('FLASK_ENV')
+port_env = os.environ.get('PORT')
+
+print(f"🔧 ADMIN_TOKEN: {'✅' if admin_token_env else '❌'} {admin_token_env or 'No encontrado'}")
+print(f"🔧 DATABASE_URL: {'✅' if database_url_env else '❌'} {'Configurada' if database_url_env else 'No encontrada'}")
+print(f"🔧 FLASK_ENV: {'✅' if flask_env_env else '❌'} {flask_env_env or 'No encontrada'}")
+print(f"🔧 PORT: {port_env or 'No encontrada'}")
+
+# Configuración con MÚLTIPLES FALLBACKS
+ADMIN_TOKEN = admin_token_env or '2205'
+
+# DATABASE_URL con 3 niveles de fallback
+if database_url_env:
+    DATABASE_URL = database_url_env
+    print(f"✅ DATABASE_URL desde variables de entorno: OK")
+elif os.path.exists('/data/database_url.txt'):
+    try:
+        with open('/data/database_url.txt', 'r') as f:
+            DATABASE_URL = f.read().strip()
+        print(f"✅ DATABASE_URL desde archivo: OK")
+    except Exception as e:
+        print(f"❌ Error leyendo DATABASE_URL de archivo: {e}")
+        DATABASE_URL = None
+else:
+    # Fallback hardcodeado (debería ser el último recurso)
+    DATABASE_URL = "postgresql://dantepropiedades_db_user:g7n7acitEIXzMHiVUZRPGB2J2vALxjeV@dpg-d4rp1kbuibrs73cik0m0-a.oregon-postgres.render.com/dantepropiedades_db"
+    print(f"⚠️ DATABASE_URL hardcodeada (fallback): OK")
+
+# Logging seguro (ocultar contraseña)
+if DATABASE_URL:
+    try:
+        # Extraer solo la parte segura para logging
+        url_parts = DATABASE_URL.split('@')
+        if len(url_parts) == 2:
+            safe_url = url_parts[0].split(':')[0] + ':***@' + url_parts[1]
+        else:
+            safe_url = '***'
+        print(f"🔧 DATABASE_URL (segura): {safe_url}")
+    except:
+        print(f"🔧 DATABASE_URL: Configurada (oculta por seguridad)")
+
+print("=" * 50)
 
 class PostgreSQLStorageManager:
     """
     📊 Gestor de almacenamiento en PostgreSQL
-    Compatible con Render.com y bases de datos en la nube
+    Con manejo robusto de errores y fallbacks
     """
     
     def __init__(self):
+        self.database_available = False
         self.init_database()
     
     def get_connection(self):
-        """Obtener conexión a PostgreSQL"""
+        """Obtener conexión a PostgreSQL con manejo de errores"""
+        if not DATABASE_URL:
+            raise Exception("DATABASE_URL no está configurada")
+        
         try:
+            print(f"🔗 Intentando conectar a PostgreSQL...")
             conn = psycopg2.connect(DATABASE_URL)
+            print(f"✅ Conexión a PostgreSQL exitosa")
+            self.database_available = True
             return conn
         except Exception as e:
-            logging.error(f"Error conectando a PostgreSQL: {e}")
+            print(f"❌ Error conectando a PostgreSQL: {e}")
+            self.database_available = False
             raise
+    
+    def test_connection(self):
+        """Probar conexión sin inicializar tabla"""
+        try:
+            conn = self.get_connection()
+            cur = conn.cursor()
+            cur.execute("SELECT 1")
+            cur.close()
+            conn.close()
+            return True
+        except:
+            return False
     
     def init_database(self):
         """Inicializar tabla de contactos"""
+        if not DATABASE_URL:
+            print("❌ DATABASE_URL no configurada, saltando inicialización")
+            return
+        
         try:
             conn = self.get_connection()
-            cursor = conn.cursor()
+            cur = conn.cursor()
             
             # Crear tabla si no existe
-            cursor.execute("""
+            cur.execute("""
                 CREATE TABLE IF NOT EXISTS contactos (
                     id SERIAL PRIMARY KEY,
-                    timestamp VARCHAR(255) UNIQUE NOT NULL,
-                    nombre VARCHAR(255) NOT NULL,
-                    email VARCHAR(255),
-                    telefono VARCHAR(255),
-                    estado VARCHAR(100) DEFAULT 'nuevo',
-                    notas TEXT,
-                    ip_address VARCHAR(45),
-                    user_agent TEXT,
-                    fecha_creacion TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                    fecha_actualizacion TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                    nombre TEXT NOT NULL,
+                    email TEXT NOT NULL,
+                    telefono TEXT,
+                    mensaje TEXT,
+                    fecha_creacion TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 )
             """)
             
-            # Crear índices para mejorar rendimiento
-            cursor.execute("""
-                CREATE INDEX IF NOT EXISTS idx_contactos_timestamp 
-                ON contactos(timestamp)
-            """)
-            
-            cursor.execute("""
-                CREATE INDEX IF NOT EXISTS idx_contactos_fecha 
-                ON contactos(fecha_creacion)
-            """)
-            
             conn.commit()
-            cursor.close()
+            cur.close()
             conn.close()
-            logging.info("✅ Base de datos PostgreSQL inicializada correctamente")
+            print("✅ Base de datos inicializada correctamente")
             
         except Exception as e:
-            logging.error(f"❌ Error inicializando base de datos: {e}")
-            raise
-    
-    def guardar_contacto(self, datos):
-        """Guardar nuevo contacto"""
-        try:
-            conn = self.get_connection()
-            cursor = conn.cursor()
-            
-            cursor.execute("""
-                INSERT INTO contactos (
-                    timestamp, nombre, email, telefono, estado, notas, 
-                    ip_address, user_agent, fecha_creacion, fecha_actualizacion
-                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-                ON CONFLICT (timestamp) DO UPDATE SET
-                    nombre = EXCLUDED.nombre,
-                    email = EXCLUDED.email,
-                    telefono = EXCLUDED.telefono,
-                    estado = EXCLUDED.estado,
-                    notas = EXCLUDED.notas,
-                    fecha_actualizacion = CURRENT_TIMESTAMP
-            """, (
-                datos.get('timestamp'),
-                datos.get('nombre'),
-                datos.get('email'),
-                datos.get('telefono'),
-                datos.get('estado', 'nuevo'),
-                datos.get('notas'),
-                datos.get('ip_address'),
-                datos.get('user_agent'),
-                datetime.now(),
-                datetime.now()
-            ))
-            
-            conn.commit()
-            cursor.close()
-            conn.close()
-            
-            logging.info(f"✅ Contacto guardado: {datos.get('nombre', 'Sin nombre')}")
-            return True
-            
-        except Exception as e:
-            logging.error(f"❌ Error guardando contacto: {e}")
-            return False
-    
-    def obtener_todos_contactos(self):
-        """Obtener todos los contactos"""
-        try:
-            conn = self.get_connection()
-            cursor = conn.cursor(cursor_factory=RealDictCursor)
-            
-            cursor.execute("""
-                SELECT id, timestamp, nombre, email, telefono, estado, notas,
-                       ip_address, user_agent, fecha_creacion, fecha_actualizacion
-                FROM contactos 
-                ORDER BY fecha_creacion DESC
-            """)
-            
-            contactos = cursor.fetchall()
-            
-            cursor.close()
-            conn.close()
-            
-            # Convertir a lista de diccionarios para JSON
-            return [dict(contacto) for contacto in contactos]
-            
-        except Exception as e:
-            logging.error(f"❌ Error obteniendo contactos: {e}")
-            return []
-    
-    def obtener_contacto_por_id(self, timestamp):
-        """Obtener contacto específico por timestamp"""
-        try:
-            conn = self.get_connection()
-            cursor = conn.cursor(cursor_factory=RealDictCursor)
-            
-            cursor.execute("""
-                SELECT * FROM contactos WHERE timestamp = %s
-            """, (timestamp,))
-            
-            contacto = cursor.fetchone()
-            
-            cursor.close()
-            conn.close()
-            
-            return dict(contacto) if contacto else None
-            
-        except Exception as e:
-            logging.error(f"❌ Error obteniendo contacto: {e}")
-            return None
-    
-    def actualizar_contacto(self, timestamp, datos_actualizados):
-        """Actualizar contacto existente"""
-        try:
-            conn = self.get_connection()
-            cursor = conn.cursor()
-            
-            campos_actualizar = []
-            valores = []
-            
-            for campo in ['nombre', 'email', 'telefono', 'estado', 'notas']:
-                if campo in datos_actualizados:
-                    campos_actualizar.append(f"{campo} = %s")
-                    valores.append(datos_actualizados[campo])
-            
-            if campos_actualizar:
-                valores.append(datetime.now())
-                valores.append(timestamp)
-                
-                query = f"""
-                    UPDATE contactos 
-                    SET {', '.join(campos_actualizar)}, fecha_actualizacion = %s 
-                    WHERE timestamp = %s
-                """
-                
-                cursor.execute(query, valores)
-                conn.commit()
-            
-            cursor.close()
-            conn.close()
-            
-            logging.info(f"✅ Contacto actualizado: {timestamp}")
-            return True
-            
-        except Exception as e:
-            logging.error(f"❌ Error actualizando contacto: {e}")
-            return False
-    
-    def eliminar_contacto(self, timestamp):
-        """Eliminar contacto"""
-        try:
-            conn = self.get_connection()
-            cursor = conn.cursor()
-            
-            cursor.execute("DELETE FROM contactos WHERE timestamp = %s", (timestamp,))
-            filas_afectadas = cursor.rowcount
-            
-            conn.commit()
-            cursor.close()
-            conn.close()
-            
-            logging.info(f"✅ Contacto eliminado: {timestamp} ({filas_afectadas} filas)")
-            return filas_afectadas > 0
-            
-        except Exception as e:
-            logging.error(f"❌ Error eliminando contacto: {e}")
-            return False
-    
-    def limpiar_todos_contactos(self):
-        """Eliminar todos los contactos"""
-        try:
-            conn = self.get_connection()
-            cursor = conn.cursor()
-            
-            cursor.execute("SELECT COUNT(*) FROM contactos")
-            total = cursor.fetchone()[0]
-            
-            cursor.execute("DELETE FROM contactos")
-            conn.commit()
-            
-            cursor.close()
-            conn.close()
-            
-            logging.info(f"✅ {total} contactos eliminados")
-            return total
-            
-        except Exception as e:
-            logging.error(f"❌ Error limpiando contactos: {e}")
-            return False
-    
-    def obtener_estadisticas(self):
-        """Obtener estadísticas de contactos"""
-        try:
-            conn = self.get_connection()
-            cursor = conn.cursor(cursor_factory=RealDictCursor)
-            
-            # Total de contactos
-            cursor.execute("SELECT COUNT(*) as total FROM contactos")
-            total = cursor.fetchone()['total']
-            
-            # Contactos por estado
-            cursor.execute("""
-                SELECT estado, COUNT(*) as cantidad 
-                FROM contactos 
-                GROUP BY estado 
-                ORDER BY cantidad DESC
-            """)
-            por_estado = cursor.fetchall()
-            
-            # Contactos por día (últimos 30 días)
-            cursor.execute("""
-                SELECT DATE(fecha_creacion) as fecha, COUNT(*) as cantidad
-                FROM contactos 
-                WHERE fecha_creacion >= CURRENT_DATE - INTERVAL '30 days'
-                GROUP BY DATE(fecha_creacion)
-                ORDER BY fecha DESC
-            """)
-            por_dia = cursor.fetchall()
-            
-            # Últimos contactos
-            cursor.execute("""
-                SELECT nombre, email, fecha_creacion 
-                FROM contactos 
-                ORDER BY fecha_creacion DESC 
-                LIMIT 5
-            """)
-            ultimos = cursor.fetchall()
-            
-            cursor.close()
-            conn.close()
-            
-            return {
-                'total': total,
-                'por_estado': [dict(row) for row in por_estado],
-                'por_dia': [dict(row) for row in por_dia],
-                'ultimos': [dict(row) for row in ultimos]
-            }
-            
-        except Exception as e:
-            logging.error(f"❌ Error obteniendo estadísticas: {e}")
-            return {'total': 0, 'por_estado': [], 'por_dia': [], 'ultimos': []}
+            print(f"❌ Error inicializando base de datos: {e}")
+            # No raise para permitir que la app inicie sin BD
 
-# Instancia del gestor de almacenamiento
-storage_manager = PostgreSQLStorageManager()
+# Inicializar gestor de almacenamiento (con manejo de errores)
+try:
+    storage_manager = PostgreSQLStorageManager()
+    print("✅ Sistema de almacenamiento PostgreSQL inicializado")
+except Exception as e:
+    print(f"❌ Error inicializando sistema de almacenamiento: {e}")
+    storage_manager = None
 
-# ============================================================================
-# RUTAS DE LA API
-# ============================================================================
+def obtener_timestamp():
+    """Generar timestamp en formato ISO"""
+    return int(time.time() * 1000)
+
+def response_error(mensaje, codigo=400):
+    """Generar respuesta de error estandarizada"""
+    return {
+        "error": True,
+        "message": mensaje,
+        "timestamp": obtener_timestamp()
+    }, codigo
+
+def response_success(data=None, mensaje="Operación exitosa", total=0):
+    """Generar respuesta de éxito estandarizada"""
+    response = {
+        "success": True,
+        "message": mensaje,
+        "timestamp": obtener_timestamp()
+    }
+    if data is not None:
+        response["data"] = data
+    if total > 0:
+        response["total"] = total
+    return response
+
+# 🏠 RUTAS DEL FRONTEND (INDEX.HTML EN LA RAÍZ)
+@app.route('/', methods=['GET'])
+def serve_index():
+    """Servir el panel de administración (index.html)"""
+    try:
+        return send_file('index.html')
+    except Exception as e:
+        print(f"❌ Error sirviendo index.html: {e}")
+        return response_error(f"Frontend no disponible: {str(e)}", 503)
 
 @app.route('/health', methods=['GET'])
 def health_check():
-    """Health check para Render"""
+    """Verificar que el servicio está funcionando"""
     try:
-        contactos = storage_manager.obtener_todos_contactos()
-        return jsonify({
-            'status': 'healthy',
-            'message': 'Servidor funcionando correctamente',
-            'total_contactos': len(contactos),
-            'timestamp': datetime.now().isoformat()
+        # Verificar estado de la base de datos
+        db_status = "disconnected"
+        total_contactos = 0
+        
+        if storage_manager and storage_manager.database_available:
+            try:
+                conn = storage_manager.get_connection()
+                cur = conn.cursor()
+                cur.execute("SELECT COUNT(*) FROM contactos")
+                total_contactos = cur.fetchone()[0]
+                cur.close()
+                conn.close()
+                db_status = "connected"
+            except:
+                db_status = "connection_error"
+        
+        return response_success({
+            "status": "healthy",
+            "database": db_status,
+            "total_contactos": total_contactos,
+            "version": "1.1.0"
         })
-    except Exception as e:
-        return jsonify({
-            'status': 'unhealthy',
-            'error': str(e)
-        }), 500
-
-@app.route('/')
-def home():
-    """Página principal"""
-    return jsonify({
-        'message': 'API de Gestión de Contactos - Dantepropiedades',
-        'version': '2.0 (Render + PostgreSQL)',
-        'endpoints': [
-            'GET /health',
-            'POST /api/guardar-contacto',
-            'GET /api/obtener-consultas',
-            'GET /api/resumen',
-            'GET /admin/data/<token>',
-            'POST /admin/add/<token>',
-            'PUT /admin/update/<token>',
-            'DELETE /admin/delete/<token>',
-            'DELETE /admin/clear/<token>'
-        ]
-    })
-
-# ============================================================================
-# RUTAS PÚBLICAS DE LA API
-# ============================================================================
-
-@app.route('/api/guardar-contacto', methods=['POST'])
-def guardar_contacto():
-    """Guardar nuevo contacto desde formulario web"""
-    try:
-        datos = request.get_json()
         
-        if not datos or not datos.get('nombre'):
-            return jsonify({'success': False, 'error': 'Datos incompletos'}), 400
-        
-        # Agregar metadatos
-        datos['timestamp'] = str(int(time.time() * 1000))
-        datos['ip_address'] = request.remote_addr
-        datos['user_agent'] = request.headers.get('User-Agent', '')
-        
-        # Guardar en base de datos
-        if storage_manager.guardar_contacto(datos):
-            logging.info(f"✅ Nuevo contacto guardado: {datos['nombre']}")
-            return jsonify({
-                'success': True, 
-                'message': 'Contacto guardado correctamente',
-                'timestamp': datos['timestamp']
-            })
-        else:
-            return jsonify({'success': False, 'error': 'Error guardando contacto'}), 500
-            
     except Exception as e:
-        logging.error(f"❌ Error en guardar-contacto: {e}")
-        return jsonify({'success': False, 'error': 'Error interno del servidor'}), 500
+        return response_error(f"Service unhealthy: {str(e)}", 503)
 
-@app.route('/api/obtener-consultas', methods=['GET'])
-def obtener_consultas():
-    """Obtener todas las consultas"""
-    try:
-        contactos = storage_manager.obtener_todos_contactos()
-        return jsonify({'success': True, 'data': contactos})
-    except Exception as e:
-        logging.error(f"❌ Error obteniendo consultas: {e}")
-        return jsonify({'success': False, 'error': str(e)}), 500
-
-@app.route('/api/resumen', methods=['GET'])
-def obtener_resumen():
-    """Obtener resumen de contactos"""
-    try:
-        stats = storage_manager.obtener_estadisticas()
-        return jsonify({'success': True, 'data': stats})
-    except Exception as e:
-        logging.error(f"❌ Error obteniendo resumen: {e}")
-        return jsonify({'success': False, 'error': str(e)}), 500
-
-# ============================================================================
-# RUTAS ADMINISTRATIVAS (PROTEGIDAS)
-# ============================================================================
-
-@app.route('/admin/data/<token>')
-def obtener_datos_admin(token):
-    """Obtener todos los contactos para admin"""
+@app.route('/admin/data/<token>', methods=['GET'])
+def obtener_datos(token):
+    """Obtener todos los contactos almacenados"""
     if token != ADMIN_TOKEN:
-        return jsonify({'error': 'Acceso no autorizado'}), 403
+        return response_error("Token de acceso inválido", 403)
+    
+    if not storage_manager or not storage_manager.database_available:
+        return response_error("Base de datos no disponible", 503)
     
     try:
-        contactos = storage_manager.obtener_todos_contactos()
-        return jsonify({'success': True, 'data': contactos})
+        conn = storage_manager.get_connection()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        
+        cur.execute("""
+            SELECT id, nombre, email, telefono, mensaje, fecha_creacion 
+            FROM contactos 
+            ORDER BY fecha_creacion DESC
+        """)
+        
+        contactos = cur.fetchall()
+        cur.close()
+        conn.close()
+        
+        # Convertir a lista de diccionarios
+        contactos_list = [dict(contacto) for contacto in contactos]
+        
+        print(f"📊 Obteniendo {len(contactos_list)} contactos")
+        
+        return response_success(
+            data=contactos_list,
+            mensaje=f"Contactos obtenidos exitosamente",
+            total=len(contactos_list)
+        )
+        
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)})
+        print(f"Error obteniendo datos: {e}")
+        return response_error(f"Error obteniendo datos: {str(e)}", 500)
 
 @app.route('/admin/add/<token>', methods=['POST'])
-def agregar_contacto_admin(token):
-    """Agregar nuevo contacto desde admin"""
+def agregar_contacto(token):
+    """Agregar nuevo contacto"""
     if token != ADMIN_TOKEN:
-        return jsonify({'error': 'Acceso no autorizado'}), 403
+        return response_error("Token de acceso inválido", 403)
+    
+    if not storage_manager or not storage_manager.database_available:
+        return response_error("Base de datos no disponible", 503)
     
     try:
-        datos = request.get_json()
+        data = request.get_json()
+        if not data:
+            return response_error("Datos JSON requeridos", 400)
         
-        if not datos or not datos.get('nombre'):
-            return jsonify({'error': 'Nombre es requerido'}), 400
+        nombre = data.get('nombre', '').strip()
+        email = data.get('email', '').strip()
+        telefono = data.get('telefono', '').strip()
+        mensaje = data.get('mensaje', '').strip()
         
-        # Agregar timestamp si no existe
-        if 'timestamp' not in datos:
-            datos['timestamp'] = str(int(time.time() * 1000))
+        # Validaciones
+        if not nombre or not email:
+            return response_error("Nombre y email son requeridos", 400)
         
-        datos['estado'] = datos.get('estado', 'nuevo')
+        conn = storage_manager.get_connection()
+        cur = conn.cursor()
         
-        if storage_manager.guardar_contacto(datos):
-            return jsonify({'success': True, 'message': 'Contacto agregado correctamente'})
-        else:
-            return jsonify({'error': 'Error guardando contacto'}), 500
-            
+        cur.execute("""
+            INSERT INTO contactos (nombre, email, telefono, mensaje)
+            VALUES (%s, %s, %s, %s)
+            RETURNING id
+        """, (nombre, email, telefono, mensaje))
+        
+        nuevo_id = cur.fetchone()[0]
+        conn.commit()
+        cur.close()
+        conn.close()
+        
+        print(f"➕ Nuevo contacto agregado: {email}")
+        
+        return response_success(
+            data={"id": nuevo_id, "nombre": nombre, "email": email},
+            mensaje="Contacto agregado exitosamente"
+        )
+        
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        print(f"Error agregando contacto: {e}")
+        return response_error(f"Error agregando contacto: {str(e)}", 500)
 
 @app.route('/admin/update/<token>', methods=['PUT'])
-def actualizar_contacto_admin(token):
-    """Actualizar contacto existente desde admin"""
+def actualizar_contacto(token):
+    """Actualizar contacto existente"""
     if token != ADMIN_TOKEN:
-        return jsonify({'error': 'Acceso no autorizado'}), 403
+        return response_error("Token de acceso inválido", 403)
+    
+    if not storage_manager or not storage_manager.database_available:
+        return response_error("Base de datos no disponible", 503)
     
     try:
-        datos = request.get_json()
-        contacto_id = datos.get('timestamp')
+        data = request.get_json()
+        if not data:
+            return response_error("Datos JSON requeridos", 400)
         
-        if not contacto_id:
-            return jsonify({'error': 'ID de contacto requerido'}), 400
+        nombre = data.get('nombre', '').strip()
+        email = data.get('email', '').strip()
+        telefono = data.get('telefono', '').strip()
+        mensaje = data.get('mensaje', '').strip()
         
-        if storage_manager.actualizar_contacto(contacto_id, datos):
-            return jsonify({'success': True, 'message': 'Contacto actualizado correctamente'})
-        else:
-            return jsonify({'error': 'Error actualizando contacto'}), 500
-            
+        if not nombre or not email:
+            return response_error("Nombre y email son requeridos", 400)
+        
+        conn = storage_manager.get_connection()
+        cur = conn.cursor()
+        
+        cur.execute("""
+            UPDATE contactos 
+            SET nombre = %s, telefono = %s, mensaje = %s
+            WHERE email = %s
+            RETURNING id
+        """, (nombre, telefono, mensaje, email))
+        
+        if cur.rowcount == 0:
+            cur.close()
+            conn.close()
+            return response_error("Contacto no encontrado", 404)
+        
+        conn.commit()
+        cur.close()
+        conn.close()
+        
+        print(f"✏️ Contacto actualizado: {email}")
+        
+        return response_success(
+            data={"email": email, "nombre": nombre},
+            mensaje="Contacto actualizado exitosamente"
+        )
+        
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        print(f"Error actualizando contacto: {e}")
+        return response_error(f"Error actualizando contacto: {str(e)}", 500)
 
 @app.route('/admin/delete/<token>', methods=['DELETE'])
-def eliminar_contacto_admin(token):
-    """Eliminar contacto desde admin"""
+def eliminar_contacto(token):
+    """Eliminar contacto por email"""
     if token != ADMIN_TOKEN:
-        return jsonify({'error': 'Acceso no autorizado'}), 403
+        return response_error("Token de acceso inválido", 403)
+    
+    if not storage_manager or not storage_manager.database_available:
+        return response_error("Base de datos no disponible", 503)
     
     try:
-        datos = request.get_json()
-        contacto_id = datos.get('timestamp')
+        data = request.get_json()
+        if not data:
+            return response_error("Datos JSON requeridos", 400)
         
-        if not contacto_id:
-            return jsonify({'error': 'ID de contacto requerido'}), 400
+        email = data.get('email', '').strip()
+        if not email:
+            return response_error("Email es requerido", 400)
         
-        if storage_manager.eliminar_contacto(contacto_id):
-            return jsonify({'success': True, 'message': 'Contacto eliminado correctamente'})
-        else:
-            return jsonify({'error': 'Error eliminando contacto'}), 500
-            
+        conn = storage_manager.get_connection()
+        cur = conn.cursor()
+        
+        cur.execute("""
+            DELETE FROM contactos 
+            WHERE email = %s
+            RETURNING id
+        """, (email,))
+        
+        if cur.rowcount == 0:
+            cur.close()
+            conn.close()
+            return response_error("Contacto no encontrado", 404)
+        
+        conn.commit()
+        cur.close()
+        conn.close()
+        
+        print(f"🗑️ Contacto eliminado: {email}")
+        
+        return response_success(
+            data={"email": email},
+            mensaje="Contacto eliminado exitosamente"
+        )
+        
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        print(f"Error eliminando contacto: {e}")
+        return response_error(f"Error eliminando contacto: {str(e)}", 500)
 
 @app.route('/admin/clear/<token>', methods=['DELETE'])
-def limpiar_datos_admin(token):
-    """Limpiar todos los datos desde admin"""
+def limpiar_todos_datos(token):
+    """Limpiar todos los datos de contactos"""
     if token != ADMIN_TOKEN:
-        return jsonify({'error': 'Acceso no autorizado'}), 403
+        return response_error("Token de acceso inválido", 403)
+    
+    if not storage_manager or not storage_manager.database_available:
+        return response_error("Base de datos no disponible", 503)
     
     try:
-        total_eliminados = storage_manager.limpiar_todos_contactos()
-        return jsonify({
-            'success': True, 
-            'message': f'{total_eliminados} contactos eliminados correctamente'
-        })
+        conn = storage_manager.get_connection()
+        cur = conn.cursor()
+        
+        cur.execute("DELETE FROM contactos")
+        eliminados = cur.rowcount
+        
+        conn.commit()
+        cur.close()
+        conn.close()
+        
+        print(f"🧹 Todos los datos eliminados: {eliminados} registros")
+        
+        return response_success(
+            data={"eliminados": eliminados},
+            mensaje="Todos los datos eliminados exitosamente"
+        )
+        
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        print(f"Error limpiando datos: {e}")
+        return response_error(f"Error limpiando datos: {str(e)}", 500)
 
-# ============================================================================
-# CONFIGURACIÓN PARA RENDER
-# ============================================================================
+@app.route('/admin/export/<token>', methods=['GET'])
+def exportar_datos(token):
+    """Exportar contactos a archivo Excel"""
+    if token != ADMIN_TOKEN:
+        return response_error("Token de acceso inválido", 403)
+    
+    if not storage_manager or not storage_manager.database_available:
+        return response_error("Base de datos no disponible", 503)
+    
+    try:
+        conn = storage_manager.get_connection()
+        df = pd.read_sql("SELECT * FROM contactos ORDER BY fecha_creacion DESC", conn)
+        conn.close()
+        
+        # Crear archivo Excel temporal
+        import tempfile
+        temp_file = tempfile.NamedTemporaryFile(delete=False, suffix='.xlsx')
+        df.to_excel(temp_file.name, index=False)
+        
+        print(f"📊 Datos exportados: {len(df)} contactos")
+        
+        return send_file(
+            temp_file.name,
+            as_attachment=True,
+            download_name=f"contactos_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx",
+            mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+        )
+        
+    except Exception as e:
+        print(f"Error exportando datos: {e}")
+        return response_error(f"Error exportando datos: {str(e)}", 500)
+
+# 🔍 RUTA DE DIAGNÓSTICO PARA VERIFICAR VARIABLES
+@app.route('/debug', methods=['GET'])
+def debug_info():
+    """Información de diagnóstico"""
+    return {
+        "debug": True,
+        "variables": {
+            "ADMIN_TOKEN": ADMIN_TOKEN,
+            "DATABASE_URL_configured": bool(DATABASE_URL),
+            "storage_manager_available": storage_manager is not None,
+            "database_available": storage_manager.database_available if storage_manager else False
+        },
+        "timestamp": obtener_timestamp()
+    }
 
 if __name__ == '__main__':
-    port = int(os.environ.get('PORT', 5000))
-    app.run(host='0.0.0.0', port=port, debug=False)
+    print("🚀 Iniciando aplicación Flask...")
+    app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 5000)), debug=False)

@@ -19,7 +19,7 @@
             width: 300px;
         }
         .hidden { display: none !important; }
-        .admin-panel { background: white; padding: 20px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+        .admin-panel { background: white; padding: 20px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); margin-bottom: 20px; }
         .btn { padding: 10px 20px; border: none; border-radius: 5px; cursor: pointer; margin: 5px; }
         .btn-primary { background: #007bff; color: white; }
         .btn-success { background: #28a745; color: white; }
@@ -48,365 +48,286 @@
         .estado { 
             padding: 3px 8px; border-radius: 12px; font-size: 0.8em; font-weight: bold; 
         }
-        .estado-nuevo { background: #e3f2fd; color: #1976d2; }
-        .estado-contactado { background: #fff3e0; color: #f57c00; }
-        .estado-interesado { background: #e8f5e8; color: #388e3c; }
-        .estado-no_interesado { background: #ffebee; color: #d32f2f; }
-        .estado-cerrado { background: #f3e5f5; color: #7b1fa2; }
     </style>
 </head>
 <body>
-    <div class="container">
-        <!-- LOGIN SCREEN -->
-        <div id="loginScreen" class="login-container">
-            <div class="login-box">
-                <h2>🔐 Acceso de Administrador</h2>
-                <p>Ingrese la contraseña para acceder al panel</p>
-                <input type="password" id="passwordInput" placeholder="Contraseña" />
-                <button class="btn btn-primary" onclick="iniciarSesion()">Acceder</button>
-                <div id="loginError" class="error" style="display: none;"></div>
-            </div>
+    <!-- PANTALLA DE LOGIN -->
+    <div id="login-screen" class="login-container">
+        <div class="login-box">
+            <h2>🔐 Acceso Administrativo</h2>
+            <p>Ingrese la contraseña de administrador:</p>
+            <input type="password" id="admin-password" placeholder="Contraseña" />
+            <br><br>
+            <button class="btn btn-primary" onclick="verificarLogin()">Ingresar</button>
+            <div id="login-error" class="error hidden">Contraseña incorrecta</div>
         </div>
+    </div>
 
-        <!-- ADMIN PANEL -->
-        <div id="adminPanel" class="admin-panel hidden">
-            <h1>📊 Panel de Administración - Dantepropiedades</h1>
-            <p><strong>🌐 Dominio:</strong> dantepropiedades.com.ar | <strong>🔗 Backend:</strong> Render.com</p>
+    <!-- PANEL DE ADMINISTRACIÓN -->
+    <div id="admin-panel" class="admin-panel hidden">
+        <div class="container">
+            <h1>🏠 Panel Administrativo - Dantepropiedades</h1>
             
+            <!-- ESTADÍSTICAS -->
             <div class="stats">
-                <h3>📈 Estadísticas</h3>
-                <div id="estadisticas">Cargando estadísticas...</div>
-            </div>
-
-            <div style="margin-bottom: 20px;">
-                <button class="btn btn-success" onclick="mostrarFormularioNuevo()">➕ Agregar Nuevo Contacto</button>
-                <button class="btn btn-warning" onclick="refrescarDatos()">🔄 Refrescar</button>
+                <strong>📊 Total de contactos: <span id="total-contactos">0</span></strong>
+                <button class="btn btn-warning" onclick="refrescarDatos()">🔄 Actualizar</button>
                 <button class="btn btn-danger" onclick="limpiarTodosDatos()">🗑️ Limpiar Todo</button>
             </div>
 
-            <div id="listaContactos">
-                <div class="loading">Cargando contactos...</div>
+            <!-- FORMULARIO DE NUEVO CONTACTO -->
+            <div class="admin-panel">
+                <h3>➕ Agregar Nuevo Contacto</h3>
+                <form id="contacto-form">
+                    <input type="text" id="nombre" placeholder="Nombre completo" required />
+                    <input type="email" id="email" placeholder="Email" required />
+                    <input type="tel" id="telefono" placeholder="Teléfono" />
+                    <textarea id="mensaje" placeholder="Mensaje"></textarea>
+                    <button type="submit" class="btn btn-success">💾 Guardar Contacto</button>
+                </form>
+                <div id="form-message"></div>
+            </div>
+
+            <!-- LISTA DE CONTACTOS -->
+            <div class="admin-panel">
+                <h3>📋 Lista de Contactos</h3>
+                <div id="contactos-list">
+                    <p class="loading">🔄 Cargando datos desde Render...</p>
+                </div>
             </div>
         </div>
     </div>
 
-    <!-- MODAL FORMULARIO -->
-    <div id="modalFormulario" class="modal" style="display: none;">
+    <!-- MODAL DE EDICIÓN -->
+    <div id="edit-modal" class="modal hidden">
         <div class="modal-content">
-            <h3 id="tituloFormulario">Nuevo Contacto</h3>
-            <form id="formularioContacto">
-                <input type="hidden" id="contactoId" />
-                <div>
-                    <label>Nombre *</label>
-                    <input type="text" id="nombre" required />
-                </div>
-                <div>
-                    <label>Email</label>
-                    <input type="email" id="email" />
-                </div>
-                <div>
-                    <label>Teléfono</label>
-                    <input type="text" id="telefono" />
-                </div>
-                <div>
-                    <label>Estado</label>
-                    <select id="estado">
-                        <option value="nuevo">Nuevo</option>
-                        <option value="contactado">Contactado</option>
-                        <option value="interesado">Interesado</option>
-                        <option value="no_interesado">No Interesado</option>
-                        <option value="cerrado">Cerrado</option>
-                    </select>
-                </div>
-                <div>
-                    <label>Notas</label>
-                    <textarea id="notas" rows="3"></textarea>
-                </div>
-                <div style="text-align: right; margin-top: 20px;">
-                    <button type="button" class="btn" onclick="cerrarFormulario()">Cancelar</button>
-                    <button type="submit" class="btn btn-success">💾 Guardar</button>
-                </div>
+            <h3>✏️ Editar Contacto</h3>
+            <form id="edit-form">
+                <input type="text" id="edit-nombre" placeholder="Nombre completo" required />
+                <input type="email" id="edit-email" placeholder="Email" required />
+                <input type="tel" id="edit-telefono" placeholder="Teléfono" />
+                <textarea id="edit-mensaje" placeholder="Mensaje"></textarea>
+                <br>
+                <button type="submit" class="btn btn-success">💾 Actualizar</button>
+                <button type="button" class="btn" onclick="cerrarModal()">❌ Cancelar</button>
             </form>
         </div>
     </div>
 
-    <!-- MODAL VISUALIZAR -->
-    <div id="modalVisualizar" class="modal" style="display: none;">
-        <div class="modal-content">
-            <h3>👁️ Detalles del Contacto</h3>
-            <div id="detallesContacto">Cargando...</div>
-            <div style="text-align: right; margin-top: 20px;">
-                <button class="btn" onclick="cerrarVisualizar()">Cerrar</button>
-                <button class="btn btn-warning" onclick="editarDesdeVisualizar()">✏️ Editar</button>
-            </div>
-        </div>
-    </div>
-
     <script>
-        // CONFIGURACIÓN PARA DANTEPROPIEDADES.COM.AR + RENDER
-        const ADMIN_PASSWORD = '2205';
+        // 🔧 CONFIGURACIÓN
         const TOKEN = '2205';
-        const BASE_URL = 'https://danterealestate-github-io.onrender.com';
+        const ADMIN_PASSWORD = '2205';
+        const BASE_URL = 'https://pagina-web-g82d.onrender.com'; // Backend de Render
 
+        // 📋 VARIABLES GLOBALES
         let contactos = [];
-        let contactoSeleccionado = null;
+        let contactoEditando = null;
 
-        // Verificar autenticación al cargar
-        document.addEventListener('DOMContentLoaded', function() {
-            const estaAutenticado = sessionStorage.getItem('admin_autenticado') === 'true';
-            if (estaAutenticado) {
-                mostrarAdmin();
-            }
-        });
-
-        function iniciarSesion() {
-            const password = document.getElementById('passwordInput').value;
-            const errorDiv = document.getElementById('loginError');
+        // 🔐 FUNCIONES DE AUTENTICACIÓN
+        function verificarLogin() {
+            const password = document.getElementById('admin-password').value;
+            const errorDiv = document.getElementById('login-error');
             
             if (password === ADMIN_PASSWORD) {
-                sessionStorage.setItem('admin_autenticado', 'true');
-                mostrarAdmin();
+                document.getElementById('login-screen').classList.add('hidden');
+                document.getElementById('admin-panel').classList.remove('hidden');
+                cargarDatos();
             } else {
-                errorDiv.textContent = 'Contraseña incorrecta';
-                errorDiv.style.display = 'block';
+                errorDiv.classList.remove('hidden');
+                setTimeout(() => errorDiv.classList.add('hidden'), 3000);
             }
         }
 
-        function mostrarAdmin() {
-            document.getElementById('loginScreen').style.display = 'none';
-            document.getElementById('adminPanel').classList.remove('hidden');
-            cargarDatos();
-        }
-
-        // Función para hacer requests al backend de Render
+        // 🔗 FUNCIONES DE API
         async function apiRequest(endpoint, method = 'GET', data = null) {
             try {
                 const options = {
                     method: method,
                     headers: {
-                        'Content-Type': 'application/json',
+                        'Content-Type': 'application/json'
                     }
                 };
                 
-                if (data && method !== 'GET') {
+                if (data) {
                     options.body = JSON.stringify(data);
                 }
                 
                 const response = await fetch(`${BASE_URL}/admin/${endpoint}/${TOKEN}`, options);
+                const result = await response.json();
                 
                 if (!response.ok) {
-                    throw new Error(`Error ${response.status}: ${response.statusText}`);
+                    throw new Error(`Error ${response.status}: ${result.message || 'Error desconocido'}`);
                 }
                 
-                return await response.json();
+                return result;
             } catch (error) {
                 console.error('Error en API request:', error);
                 throw error;
             }
         }
 
+        // 📊 FUNCIONES DE DATOS
         async function cargarDatos() {
             try {
-                console.log('🔄 Cargando datos desde Render...');
-                const respuesta = await apiRequest('data');
+                document.getElementById('contactos-list').innerHTML = '<p class="loading">🔄 Cargando datos desde Render...</p>';
                 
-                if (respuesta.success) {
-                    contactos = respuesta.data;
-                    mostrarContactos();
-                    cargarEstadisticas();
-                } else {
-                    throw new Error(respuesta.error || 'Error cargando datos');
-                }
+                const response = await apiRequest('data', 'GET');
+                contactos = response.data || [];
+                
+                document.getElementById('total-contactos').textContent = contactos.length;
+                mostrarContactos();
+                
             } catch (error) {
-                console.error('Error cargando datos:', error);
-                document.getElementById('listaContactos').innerHTML = 
-                    `<div class="error">❌ Error cargando datos: ${error.message}</div>`;
+                document.getElementById('contactos-list').innerHTML = `
+                    <div class="error">
+                        ❌ Error cargando datos: ${error.message}
+                    </div>
+                `;
             }
         }
 
         function mostrarContactos() {
-            const contenedor = document.getElementById('listaContactos');
+            const container = document.getElementById('contactos-list');
             
             if (contactos.length === 0) {
-                contenedor.innerHTML = '<div class="loading">No hay contactos registrados</div>';
+                container.innerHTML = '<p>📭 No hay contactos registrados</p>';
                 return;
             }
             
-            let html = '<h3>📋 Lista de Contactos (' + contactos.length + ')</h3>';
-            
+            let html = '';
             contactos.forEach(contacto => {
                 html += `
                     <div class="contacto-item">
                         <div class="contacto-info">
-                            <strong>${contacto.nombre || 'Sin nombre'}</strong><br>
-                            <small>📧 ${contacto.email || 'Sin email'} | 📱 ${contacto.telefono || 'Sin teléfono'}</small><br>
-                            <span class="estado estado-${contacto.estado}">${contacto.estado || 'nuevo'}</span>
+                            <strong>${contacto.nombre}</strong><br>
+                            <span>📧 ${contacto.email}</span><br>
+                            <span>📱 ${contacto.telefono || 'No especificado'}</span><br>
+                            <small>💬 ${contacto.mensaje || 'Sin mensaje'}</small><br>
+                            <small>📅 ${new Date(contacto.fecha_creacion).toLocaleString()}</small>
                         </div>
                         <div class="contacto-actions">
-                            <button class="btn" onclick="verContacto('${contacto.timestamp}')">👁️ Ver</button>
-                            <button class="btn btn-warning" onclick="editarContacto('${contacto.timestamp}')">✏️ Editar</button>
-                            <button class="btn btn-danger" onclick="eliminarContacto('${contacto.timestamp}')">🗑️ Borrar</button>
+                            <button class="btn btn-primary" onclick="editarContacto('${contacto.email}')">✏️ Editar</button>
+                            <button class="btn btn-danger" onclick="eliminarContacto('${contacto.email}')">🗑️ Eliminar</button>
                         </div>
                     </div>
                 `;
             });
             
-            contenedor.innerHTML = html;
+            container.innerHTML = html;
         }
 
-        async function cargarEstadisticas() {
-            try {
-                const stats = await apiRequest('data');
-                if (stats.success) {
-                    const contactos = stats.data;
-                    const total = contactos.length;
-                    const nuevos = contactos.filter(c => c.estado === 'nuevo').length;
-                    const contactados = contactos.filter(c => c.estado === 'contactado').length;
-                    const interesados = contactos.filter(c => c.estado === 'interesado').length;
-                    
-                    document.getElementById('estadisticas').innerHTML = `
-                        <strong>Total:</strong> ${total} | 
-                        <strong>Nuevos:</strong> ${nuevos} | 
-                        <strong>Contactados:</strong> ${contactados} |
-                        <strong>Interesados:</strong> ${interesados}
-                    `;
-                }
-            } catch (error) {
-                console.error('Error cargando estadísticas:', error);
-            }
-        }
-
-        function mostrarFormularioNuevo() {
-            document.getElementById('tituloFormulario').textContent = 'Nuevo Contacto';
-            document.getElementById('contactoId').value = '';
-            document.getElementById('formularioContacto').reset();
-            document.getElementById('modalFormulario').style.display = 'flex';
-        }
-
-        async function editarContacto(timestamp) {
-            try {
-                const respuesta = await apiRequest('data');
-                const contacto = respuesta.data.find(c => c.timestamp === timestamp);
-                
-                if (contacto) {
-                    document.getElementById('tituloFormulario').textContent = 'Editar Contacto';
-                    document.getElementById('contactoId').value = contacto.timestamp;
-                    document.getElementById('nombre').value = contacto.nombre || '';
-                    document.getElementById('email').value = contacto.email || '';
-                    document.getElementById('telefono').value = contacto.telefono || '';
-                    document.getElementById('estado').value = contacto.estado || 'nuevo';
-                    document.getElementById('notas').value = contacto.notas || '';
-                    document.getElementById('modalFormulario').style.display = 'flex';
-                }
-            } catch (error) {
-                console.error('Error editando contacto:', error);
-            }
-        }
-
-        async function verContacto(timestamp) {
-            try {
-                const respuesta = await apiRequest('data');
-                const contacto = respuesta.data.find(c => c.timestamp === timestamp);
-                
-                if (contacto) {
-                    contactoSeleccionado = contacto;
-                    document.getElementById('detallesContacto').innerHTML = `
-                        <p><strong>Nombre:</strong> ${contacto.nombre || 'Sin nombre'}</p>
-                        <p><strong>Email:</strong> ${contacto.email || 'Sin email'}</p>
-                        <p><strong>Teléfono:</strong> ${contacto.telefono || 'Sin teléfono'}</p>
-                        <p><strong>Estado:</strong> ${contacto.estado || 'nuevo'}</p>
-                        <p><strong>Notas:</strong> ${contacto.notas || 'Sin notas'}</p>
-                        <p><strong>Fecha:</strong> ${contacto.fecha_creacion || 'No disponible'}</p>
-                    `;
-                    document.getElementById('modalVisualizar').style.display = 'flex';
-                }
-            } catch (error) {
-                console.error('Error visualizando contacto:', error);
-            }
-        }
-
-        async function eliminarContacto(timestamp) {
-            if (!confirm('¿Está seguro de eliminar este contacto?')) {
-                return;
-            }
+        async function agregarContacto(event) {
+            event.preventDefault();
+            
+            const nombre = document.getElementById('nombre').value;
+            const email = document.getElementById('email').value;
+            const telefono = document.getElementById('telefono').value;
+            const mensaje = document.getElementById('mensaje').value;
             
             try {
-                await apiRequest('delete', 'DELETE', { timestamp });
-                await cargarDatos();
-                alert('✅ Contacto eliminado correctamente');
+                await apiRequest('add', 'POST', {
+                    nombre: nombre,
+                    email: email,
+                    telefono: telefono,
+                    mensaje: mensaje
+                });
+                
+                document.getElementById('form-message').innerHTML = '<div class="success">✅ Contacto agregado exitosamente</div>';
+                document.getElementById('contacto-form').reset();
+                cargarDatos();
+                
+                setTimeout(() => document.getElementById('form-message').innerHTML = '', 3000);
+                
             } catch (error) {
-                console.error('Error eliminando contacto:', error);
-                alert('❌ Error eliminando contacto');
+                document.getElementById('form-message').innerHTML = `<div class="error">❌ Error guardando contacto: ${error.message}</div>`;
             }
         }
 
-        function editarDesdeVisualizar() {
-            if (contactoSeleccionado) {
-                cerrarVisualizar();
-                editarContacto(contactoSeleccionado.timestamp);
+        function editarContacto(email) {
+            const contacto = contactos.find(c => c.email === email);
+            if (!contacto) return;
+            
+            contactoEditando = email;
+            
+            document.getElementById('edit-nombre').value = contacto.nombre;
+            document.getElementById('edit-email').value = contacto.email;
+            document.getElementById('edit-telefono').value = contacto.telefono || '';
+            document.getElementById('edit-mensaje').value = contacto.mensaje || '';
+            
+            document.getElementById('edit-modal').classList.remove('hidden');
+        }
+
+        async function actualizarContacto(event) {
+            event.preventDefault();
+            
+            const nombre = document.getElementById('edit-nombre').value;
+            const email = document.getElementById('edit-email').value;
+            const telefono = document.getElementById('edit-telefono').value;
+            const mensaje = document.getElementById('edit-mensaje').value;
+            
+            try {
+                await apiRequest('update', 'PUT', {
+                    nombre: nombre,
+                    email: email,
+                    telefono: telefono,
+                    mensaje: mensaje
+                });
+                
+                cerrarModal();
+                cargarDatos();
+                
+            } catch (error) {
+                alert(`Error actualizando contacto: ${error.message}`);
             }
         }
 
-        function cerrarFormulario() {
-            document.getElementById('modalFormulario').style.display = 'none';
-        }
-
-        function cerrarVisualizar() {
-            document.getElementById('modalVisualizar').style.display = 'none';
-            contactoSeleccionado = null;
+        async function eliminarContacto(email) {
+            if (!confirm('¿Está seguro de eliminar este contacto?')) return;
+            
+            try {
+                await apiRequest('delete', 'DELETE', { email: email });
+                cargarDatos();
+                
+            } catch (error) {
+                alert(`Error eliminando contacto: ${error.message}`);
+            }
         }
 
         async function limpiarTodosDatos() {
-            if (!confirm('¿Está seguro de eliminar TODOS los contactos? Esta acción no se puede deshacer.')) {
-                return;
-            }
+            if (!confirm('¿Está seguro de eliminar TODOS los contactos? Esta acción no se puede deshacer.')) return;
             
             try {
                 await apiRequest('clear', 'DELETE');
-                await cargarDatos();
-                alert('✅ Todos los contactos han sido eliminados');
-            } catch (error) {
-                console.error('Error limpiando datos:', error);
-                alert('❌ Error limpiando datos');
-            }
-        }
-
-        async function refrescarDatos() {
-            await cargarDatos();
-        }
-
-        // Manejar envío del formulario
-        document.getElementById('formularioContacto').addEventListener('submit', async function(e) {
-            e.preventDefault();
-            
-            const id = document.getElementById('contactoId').value;
-            const datos = {
-                nombre: document.getElementById('nombre').value,
-                email: document.getElementById('email').value,
-                telefono: document.getElementById('telefono').value,
-                estado: document.getElementById('estado').value,
-                notas: document.getElementById('notas').value
-            };
-            
-            try {
-                if (id) {
-                    // Editar contacto existente
-                    datos.timestamp = id;
-                    await apiRequest('update', 'PUT', datos);
-                    alert('✅ Contacto actualizado correctamente');
-                } else {
-                    // Crear nuevo contacto
-                    await apiRequest('add', 'POST', datos);
-                    alert('✅ Contacto creado correctamente');
-                }
+                cargarDatos();
                 
-                cerrarFormulario();
-                await cargarDatos();
             } catch (error) {
-                console.error('Error guardando contacto:', error);
-                alert('❌ Error guardando contacto');
+                alert(`Error limpiando datos: ${error.message}`);
             }
+        }
+
+        function refrescarDatos() {
+            cargarDatos();
+        }
+
+        function cerrarModal() {
+            document.getElementById('edit-modal').classList.add('hidden');
+            contactoEditando = null;
+        }
+
+        // 🎯 EVENT LISTENERS
+        document.getElementById('contacto-form').addEventListener('submit', agregarContacto);
+        document.getElementById('edit-form').addEventListener('submit', actualizarContacto);
+        document.getElementById('admin-password').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') verificarLogin();
         });
+
+        // 🔄 AUTO-REFRESH cada 30 segundos
+        setInterval(() => {
+            if (!document.getElementById('login-screen').classList.contains('hidden')) {
+                cargarDatos();
+            }
+        }, 30000);
     </script>
 </body>
 </html>
