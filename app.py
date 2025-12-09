@@ -5,11 +5,10 @@
 
 Versión con múltiples fallbacks para DATABASE_URL
 Compatible con Render.com y bases de datos en la nube
-Configurado para servir frontend desde la raíz
 """
 
 import os
-from flask import Flask, request, jsonify, send_file, send_from_directory
+from flask import Flask, request, jsonify, send_file
 from flask_cors import CORS
 import pandas as pd
 import psycopg2
@@ -28,13 +27,12 @@ logging.basicConfig(
 
 app = Flask(__name__)
 
-# 🔧 CONFIGURACIÓN CORS PARA FRONTEND EN LA RAÍZ
+# Configuración CORS para dominio personalizado
 CORS(app, origins=[
-    "https://pagina-web-g82d.onrender.com",  # Frontend principal
-    "https://danterealestate-github-io.onrender.com",  # Frontend alternativo
+    "https://dantepropiedades.com.ar",
+    "https://danterealestate.github.io",
     "http://localhost:3000",
-    "http://localhost:8000",
-    "http://localhost:5000"
+    "http://localhost:8000"
 ])
 
 # 🔍 DIAGNÓSTICO COMPLETO DE VARIABLES DE ENTORNO
@@ -189,17 +187,7 @@ def response_success(data=None, mensaje="Operación exitosa", total=0):
         response["total"] = total
     return response
 
-# 🏠 RUTAS DEL FRONTEND (INDEX.HTML EN LA RAÍZ)
 @app.route('/', methods=['GET'])
-def serve_index():
-    """Servir el panel de administración (index.html)"""
-    try:
-        return send_file('index.html')
-    except Exception as e:
-        print(f"❌ Error sirviendo index.html: {e}")
-        return response_error(f"Frontend no disponible: {str(e)}", 503)
-
-@app.route('/health', methods=['GET'])
 def health_check():
     """Verificar que el servicio está funcionando"""
     try:

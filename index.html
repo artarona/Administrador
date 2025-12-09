@@ -139,7 +139,7 @@
             }
         }
 
-        // 🔗 FUNCIONES DE API
+        // 🔗 FUNCIONES DE API - CORREGIDAS
         async function apiRequest(endpoint, method = 'GET', data = null) {
             try {
                 const options = {
@@ -153,7 +153,9 @@
                     options.body = JSON.stringify(data);
                 }
                 
-                const response = await fetch(`${BASE_URL}/admin/${endpoint}/${TOKEN}`, options);
+                // ✅ CORRECCIÓN: Token como parámetro de query
+                const url = `${BASE_URL}/admin/${endpoint}?token=${TOKEN}`;
+                const response = await fetch(url, options);
                 const result = await response.json();
                 
                 if (!response.ok) {
