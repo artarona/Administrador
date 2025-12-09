@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 
 """
-Sistema Administrativo Dantepropiedades - Versión con Base de Datos Compatible
+Sistema Administrativo Dantepropiedades - Versión Corregida Final
 Backend Flask con PostgreSQL y adaptación automática de estructura BD
 """
 
@@ -88,18 +88,19 @@ def adaptar_estructura_bd():
     try:
         print("🔧 Verificando y adaptando estructura de la base de datos...")
         
-        # Verificar qué columnas existen actualmente
+        # Verificar si la tabla contactos existe
         db_cursor.execute("""
-            SELECT column_name, data_type 
-            FROM information_schema.columns 
-            WHERE table_name = 'contactos'
+            SELECT EXISTS (
+                SELECT FROM information_schema.tables 
+                WHERE table_schema = 'public' 
+                AND table_name = 'contactos'
+            )
         """)
         
-        columnas_existentes = [row[0] for row in db_cursor.fetchall()]
-        print(f"📊 Columnas existentes: {columnas_existentes}")
+        tabla_existe = db_cursor.fetchone()[0]
+        print(f"📋 Tabla 'contactos' existe: {tabla_existe}")
         
-        # Verificar si la tabla existe
-        if 'contactos' not in columnas_existentes:
+        if not tabla_existe:
             print("📝 Tabla 'contactos' no existe, creando...")
             db_cursor.execute('''
                 CREATE TABLE contactos (
@@ -116,12 +117,26 @@ def adaptar_estructura_bd():
             print("✅ Tabla 'contactos' creada exitosamente")
             return True
         
+        # Si la tabla existe, verificar qué columnas existen
+        db_cursor.execute("""
+            SELECT column_name, data_type 
+            FROM information_schema.columns 
+            WHERE table_name = 'contactos'
+            ORDER BY column_name
+        """)
+        
+        columnas_info = db_cursor.fetchall()
+        columnas_existentes = [row[0] for row in columnas_info]
+        print(f"📊 Columnas existentes: {columnas_existentes}")
+        
         # Verificar si existe la columna 'mensaje'
         if 'mensaje' not in columnas_existentes:
             print("➕ Agregando columna 'mensaje' a la tabla...")
             db_cursor.execute('ALTER TABLE contactos ADD COLUMN mensaje TEXT')
             db_connection.commit()
             print("✅ Columna 'mensaje' agregada exitosamente")
+        else:
+            print("✅ Columna 'mensaje' ya existe")
         
         # Verificar si existe la columna 'fecha_creacion'
         if 'fecha_creacion' not in columnas_existentes:
@@ -129,6 +144,8 @@ def adaptar_estructura_bd():
             db_cursor.execute('ALTER TABLE contactos ADD COLUMN fecha_creacion TIMESTAMP DEFAULT CURRENT_TIMESTAMP')
             db_connection.commit()
             print("✅ Columna 'fecha_creacion' agregada exitosamente")
+        else:
+            print("✅ Columna 'fecha_creacion' ya existe")
         
         # Verificar si existe la columna 'fecha_actualizacion'
         if 'fecha_actualizacion' not in columnas_existentes:
@@ -136,32 +153,15 @@ def adaptar_estructura_bd():
             db_cursor.execute('ALTER TABLE contactos ADD COLUMN fecha_actualizacion TIMESTAMP DEFAULT CURRENT_TIMESTAMP')
             db_connection.commit()
             print("✅ Columna 'fecha_actualizacion' agregada exitosamente")
-        
-        # Verificar restricciones de UNIQUE en email
-        try:
-            db_cursor.execute("""
-                SELECT constraint_name 
-                FROM information_schema.table_constraints 
-                WHERE table_name = 'contactos' 
-                AND constraint_type = 'UNIQUE'
-            """)
-            constraints = [row[0] for row in db_cursor.fetchall()]
-            
-            # Si no hay constraint de UNIQUE en email, agregarlo
-            if 'contactos_email_key' not in constraints:
-                print("➕ Agregando restricción UNIQUE a columna 'email'...")
-                db_cursor.execute('CREATE UNIQUE INDEX idx_contactos_email ON contactos (email)')
-                db_connection.commit()
-                print("✅ Restricción UNIQUE en email agregada exitosamente")
-        
-        except Exception as e:
-            print(f"⚠️ No se pudo verificar restricción UNIQUE: {str(e)}")
+        else:
+            print("✅ Columna 'fecha_actualizacion' ya existe")
         
         print("✅ Estructura de base de datos adaptada exitosamente")
         return True
         
     except Exception as e:
         print(f"❌ Error adaptando estructura BD: {str(e)}")
+        traceback.print_exc()
         return False
 
 def conectar_postgresql():
@@ -217,6 +217,7 @@ def obtener_datos():
         
     except Exception as e:
         print(f"❌ Error obteniendo datos: {str(e)}")
+        traceback.print_exc()
         return []
 
 def verificar_token():
@@ -293,24 +294,12 @@ def admin_add():
         except Exception as e:
             print(f"⚠️ Error verificando email existente: {str(e)}")
         
-        # Insertar nuevo contacto (usar NULL si no existe la columna)
+        # Insertar nuevo contacto usando solo las columnas que sabemos que existen
+        # Basado en los logs: ['id', 'fecha_creacion', 'fecha_actualizacion', 'email', 'telefono', 'estado', 'notas', 'ip_address', 'user_agent', 'timestamp', 'nombre']
         try:
             db_cursor.execute('''
-                INSERT INTO contactos (nombre, email, telefono, mensaje)
-                VALUES (%s, %s, %s, %s)
-                RETURNING id
-            ''', (
-                datos['nombre'],
-                datos['email'],
-                datos.get('telefono', ''),
-                datos.get('mensaje', '')
-            ))
-        except psycopg2.errors.UndefinedColumn:
-            # Si falla por columna mensaje, intentar sin ella
-            print("⚠️ Columna 'mensaje' no existe, insertando sin ella...")
-            db_cursor.execute('''
-                INSERT INTO contactos (nombre, email, telefono)
-                VALUES (%s, %s, %s)
+                INSERT INTO contactos (nombre, email, telefono, estado)
+                VALUES (%s, %s, %s, 'activo')
                 RETURNING id
             ''', (
                 datos['nombre'],
@@ -319,6 +308,7 @@ def admin_add():
             ))
         except Exception as e:
             print(f"❌ Error en inserción: {str(e)}")
+            traceback.print_exc()
             return jsonify({
                 'error': 'Error insertando en base de datos',
                 'details': str(e)
@@ -362,24 +352,11 @@ def admin_update():
             if not conectar_postgresql():
                 return jsonify({'error': 'Error de conexión a base de datos'}), 500
         
-        # Actualizar contacto
+        # Actualizar contacto usando las columnas que sabemos que existen
         try:
             db_cursor.execute('''
                 UPDATE contactos 
-                SET nombre = %s, telefono = %s, mensaje = %s, fecha_actualizacion = CURRENT_TIMESTAMP
-                WHERE email = %s
-            ''', (
-                datos.get('nombre', ''),
-                datos.get('telefono', ''),
-                datos.get('mensaje', ''),
-                datos['email']
-            ))
-        except psycopg2.errors.UndefinedColumn:
-            # Si falla por columna mensaje, actualizar sin ella
-            print("⚠️ Columna 'mensaje' no existe, actualizando sin ella...")
-            db_cursor.execute('''
-                UPDATE contactos 
-                SET nombre = %s, telefono = %s, fecha_actualizacion = CURRENT_TIMESTAMP
+                SET nombre = %s, telefono = %s, estado = 'activo', fecha_actualizacion = CURRENT_TIMESTAMP
                 WHERE email = %s
             ''', (
                 datos.get('nombre', ''),
@@ -388,6 +365,7 @@ def admin_update():
             ))
         except Exception as e:
             print(f"❌ Error en actualización: {str(e)}")
+            traceback.print_exc()
             return jsonify({
                 'error': 'Error actualizando en base de datos',
                 'details': str(e)
@@ -514,7 +492,7 @@ def api_status():
     """Estado del API"""
     return jsonify({
         'api': 'Sistema Administrativo Dantepropiedades',
-        'version': '2.1.0',
+        'version': '2.2.0',
         'status': 'active',
         'database': 'PostgreSQL',
         'frontend': 'GitHub Pages + Backend Render',
