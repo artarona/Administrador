@@ -453,25 +453,24 @@ def admin_update():
             if not conectar_postgresql():
                 return jsonify({'error': 'Error de conexiÃ³n a base de datos'}), 500
         
-        # Actualizar contacto con timestamp
+        # Actualizar solo los campos editables por el usuario
         current_timestamp = datetime.now()
         
         try:
+            # ✅ UPDATE simplificado - solo campos editables
             db_cursor.execute('''
                 UPDATE contactos 
-                SET nombre = %s, telefono = %s, mensaje = %s, estado = 'activo',
-                    fecha_actualizacion = %s, timestamp = %s
+                SET nombre = %s, telefono = %s, mensaje = %s, fecha_actualizacion = %s
                 WHERE email = %s
             ''', (
                 datos.get('nombre', ''),
                 datos.get('telefono', ''),
                 datos.get('mensaje', ''),
                 current_timestamp,
-                current_timestamp,
                 datos['email']
             ))
         except Exception as e:
-            print(f"âŒ Error en actualizaciÃ³n: {str(e)}")
+            print(f"❌ Error en actualizaciÃ³n: {str(e)}")
             traceback.print_exc()
             if db_connection:
                 db_connection.rollback()
@@ -485,6 +484,8 @@ def admin_update():
         
         db_connection.commit()
         
+        print(f"✅ Contacto actualizado: {datos.get('nombre')} ({datos['email']})")
+        
         return jsonify({
             'success': True,
             'message': 'Contacto actualizado exitosamente',
@@ -492,7 +493,7 @@ def admin_update():
         })
         
     except Exception as e:
-        print(f"âŒ Error en /admin/update: {str(e)}")
+        print(f"❌ Error en /admin/update: {str(e)}")
         traceback.print_exc()
         if db_connection:
             db_connection.rollback()
