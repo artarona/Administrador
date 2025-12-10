@@ -1,55 +1,202 @@
 <!DOCTYPE html>
 <html lang="es">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Panel Admin - Dantepropiedades (Render)</title>
     <style>
         /* ESTILOS BÁSICOS */
-        body { font-family: Arial, sans-serif; margin: 0; padding: 20px; background: #f5f5f5; }
-        .container { max-width: 1200px; margin: 0 auto; }
-        .login-container { 
-            position: fixed; top: 0; left: 0; width: 100%; height: 100%; 
-            background: rgba(0,0,0,0.8); display: flex; justify-content: center; align-items: center;
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        .login-container {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.8);
+            display: flex;
+            justify-content: center;
+            align-items: center;
             z-index: 1000;
         }
-        .login-box { 
-            background: white; padding: 40px; border-radius: 10px; 
-            box-shadow: 0 4px 20px rgba(0,0,0,0.3); text-align: center;
+
+        .login-box {
+            background: white;
+            padding: 40px;
+            border-radius: 10px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+            text-align: center;
             width: 300px;
         }
-        .hidden { display: none !important; }
-        .admin-panel { background: white; padding: 20px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); margin-bottom: 20px; }
-        .btn { padding: 10px 20px; border: none; border-radius: 5px; cursor: pointer; margin: 5px; }
-        .btn-primary { background: #007bff; color: white; }
-        .btn-success { background: #28a745; color: white; }
-        .btn-danger { background: #dc3545; color: white; }
-        .btn-warning { background: #ffc107; color: black; }
-        .contacto-item { 
-            padding: 15px; margin: 10px 0; border: 1px solid #ddd; border-radius: 5px; 
-            background: #f9f9f9; display: flex; justify-content: space-between; align-items: center;
+
+        .hidden {
+            display: none !important;
         }
-        .contacto-info { flex: 1; }
-        .contacto-actions { display: flex; gap: 10px; }
-        .error { color: red; background: #ffe6e6; padding: 10px; border-radius: 5px; margin: 10px 0; }
-        .success { color: green; background: #e6ffe6; padding: 10px; border-radius: 5px; margin: 10px 0; }
-        .loading { color: #666; font-style: italic; }
-        .stats { background: #e3f2fd; padding: 15px; border-radius: 5px; margin-bottom: 20px; }
-        input, textarea { width: 100%; padding: 8px; margin: 5px 0; border: 1px solid #ddd; border-radius: 4px; }
-        .modal { 
-            position: fixed; top: 0; left: 0; width: 100%; height: 100%; 
-            background: rgba(0,0,0,0.5); display: flex; justify-content: center; align-items: center;
+
+        .admin-panel {
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+            margin-bottom: 20px;
+        }
+
+        .btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 5px;
+        }
+
+        .btn-primary {
+            background: #007bff;
+            color: white;
+        }
+
+        .btn-success {
+            background: #28a745;
+            color: white;
+        }
+
+        .btn-danger {
+            background: #dc3545;
+            color: white;
+        }
+
+        .btn-warning {
+            background: #ffc107;
+            color: black;
+        }
+
+        .btn-secondary {
+            background: #6c757d;
+            color: white;
+        }
+
+        .contacto-item {
+            padding: 15px;
+            margin: 10px 0;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            background: #f9f9f9;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .contacto-info {
+            flex: 1;
+        }
+
+        .contacto-actions {
+            display: flex;
+            gap: 10px;
+        }
+
+        .error {
+            color: red;
+            background: #ffe6e6;
+            padding: 10px;
+            border-radius: 5px;
+            margin: 10px 0;
+        }
+
+        .success {
+            color: green;
+            background: #e6ffe6;
+            padding: 10px;
+            border-radius: 5px;
+            margin: 10px 0;
+        }
+
+        .loading {
+            color: #666;
+            font-style: italic;
+        }
+
+        .stats {
+            background: #e3f2fd;
+            padding: 15px;
+            border-radius: 5px;
+            margin-bottom: 20px;
+        }
+
+        input,
+        textarea {
+            width: 100%;
+            padding: 8px;
+            margin: 5px 0;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+
+        .modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.5);
+            display: flex;
+            justify-content: center;
+            align-items: center;
             z-index: 2000;
         }
-        .modal-content { 
-            background: white; padding: 20px; border-radius: 10px; max-width: 500px; width: 90%;
-            max-height: 80vh; overflow-y: auto;
+
+        .modal-content {
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            max-width: 500px;
+            width: 90%;
+            max-height: 80vh;
+            overflow-y: auto;
         }
-        .estado { 
-            padding: 3px 8px; border-radius: 12px; font-size: 0.8em; font-weight: bold; 
+
+        .estado {
+            padding: 3px 8px;
+            border-radius: 12px;
+            font-size: 0.8em;
+            font-weight: bold;
+        }
+
+        /* ESTILOS PARA HEADER CON LOGO */
+        .header-container {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 20px;
+            padding-bottom: 15px;
+            border-bottom: 2px solid #007bff;
+        }
+
+        .header-title {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+
+        .logo-img {
+            width: 40px;
+            height: 40px;
+            object-fit: contain;
         }
     </style>
 </head>
+
 <body>
     <!-- PANTALLA DE LOGIN -->
     <div id="login-screen" class="login-container">
@@ -66,8 +213,15 @@
     <!-- PANEL DE ADMINISTRACIÓN -->
     <div id="admin-panel" class="admin-panel hidden">
         <div class="container">
-            <h1>🏠 Panel Administrativo - Dantepropiedades</h1>
-            
+            <!-- HEADER CON LOGO Y BOTÓN SALIR -->
+            <div class="header-container">
+                <div class="header-title">
+                    <img src="llave.png" alt="Logo" class="logo-img">
+                    <h1 style="margin: 0;">Panel Administrativo - Dantepropiedades</h1>
+                </div>
+                <button class="btn btn-secondary" onclick="cerrarSesion()">🚪 Salir</button>
+            </div>
+
             <!-- ESTADÍSTICAS -->
             <div class="stats">
                 <strong>📊 Total de contactos: <span id="total-contactos">0</span></strong>
@@ -129,7 +283,7 @@
         function verificarLogin() {
             const password = document.getElementById('admin-password').value;
             const errorDiv = document.getElementById('login-error');
-            
+
             if (password === ADMIN_PASSWORD) {
                 document.getElementById('login-screen').classList.add('hidden');
                 document.getElementById('admin-panel').classList.remove('hidden');
@@ -149,20 +303,20 @@
                         'Content-Type': 'application/json'
                     }
                 };
-                
+
                 if (data) {
                     options.body = JSON.stringify(data);
                 }
-                
+
                 // ✅ CORRECCIÓN: Token como parámetro de query + URL correcta
                 const url = `${BASE_URL}/admin/${endpoint}?token=${TOKEN}`;
                 const response = await fetch(url, options);
                 const result = await response.json();
-                
+
                 if (!response.ok) {
                     throw new Error(`Error ${response.status}: ${result.message || 'Error desconocido'}`);
                 }
-                
+
                 return result;
             } catch (error) {
                 console.error('Error en API request:', error);
@@ -174,13 +328,13 @@
         async function cargarDatos() {
             try {
                 document.getElementById('contactos-list').innerHTML = '<p class="loading">🔄 Cargando datos desde Render...</p>';
-                
+
                 const response = await apiRequest('data', 'GET');
                 contactos = response.data || [];
-                
+
                 document.getElementById('total-contactos').textContent = contactos.length;
                 mostrarContactos();
-                
+
             } catch (error) {
                 document.getElementById('contactos-list').innerHTML = `
                     <div class="error">
@@ -192,12 +346,12 @@
 
         function mostrarContactos() {
             const container = document.getElementById('contactos-list');
-            
+
             if (contactos.length === 0) {
                 container.innerHTML = '<p>📭 No hay contactos registrados</p>';
                 return;
             }
-            
+
             let html = '';
             contactos.forEach(contacto => {
                 html += `
@@ -216,18 +370,18 @@
                     </div>
                 `;
             });
-            
+
             container.innerHTML = html;
         }
 
         async function agregarContacto(event) {
             event.preventDefault();
-            
+
             const nombre = document.getElementById('nombre').value;
             const email = document.getElementById('email').value;
             const telefono = document.getElementById('telefono').value;
             const mensaje = document.getElementById('mensaje').value;
-            
+
             try {
                 await apiRequest('add', 'POST', {
                     nombre: nombre,
@@ -235,13 +389,13 @@
                     telefono: telefono,
                     mensaje: mensaje
                 });
-                
+
                 document.getElementById('form-message').innerHTML = '<div class="success">✅ Contacto agregado exitosamente</div>';
                 document.getElementById('contacto-form').reset();
                 cargarDatos();
-                
+
                 setTimeout(() => document.getElementById('form-message').innerHTML = '', 3000);
-                
+
             } catch (error) {
                 document.getElementById('form-message').innerHTML = `<div class="error">❌ Error guardando contacto: ${error.message}</div>`;
             }
@@ -250,25 +404,25 @@
         function editarContacto(email) {
             const contacto = contactos.find(c => c.email === email);
             if (!contacto) return;
-            
+
             contactoEditando = email;
-            
+
             document.getElementById('edit-nombre').value = contacto.nombre;
             document.getElementById('edit-email').value = contacto.email;
             document.getElementById('edit-telefono').value = contacto.telefono || '';
             document.getElementById('edit-mensaje').value = contacto.mensaje || '';
-            
+
             document.getElementById('edit-modal').classList.remove('hidden');
         }
 
         async function actualizarContacto(event) {
             event.preventDefault();
-            
+
             const nombre = document.getElementById('edit-nombre').value;
             const email = document.getElementById('edit-email').value;
             const telefono = document.getElementById('edit-telefono').value;
             const mensaje = document.getElementById('edit-mensaje').value;
-            
+
             try {
                 await apiRequest('update', 'PUT', {
                     nombre: nombre,
@@ -276,10 +430,10 @@
                     telefono: telefono,
                     mensaje: mensaje
                 });
-                
+
                 cerrarModal();
                 cargarDatos();
-                
+
             } catch (error) {
                 alert(`Error actualizando contacto: ${error.message}`);
             }
@@ -287,11 +441,11 @@
 
         async function eliminarContacto(email) {
             if (!confirm('¿Está seguro de eliminar este contacto?')) return;
-            
+
             try {
                 await apiRequest('delete', 'DELETE', { email: email });
                 cargarDatos();
-                
+
             } catch (error) {
                 alert(`Error eliminando contacto: ${error.message}`);
             }
@@ -299,11 +453,11 @@
 
         async function limpiarTodosDatos() {
             if (!confirm('¿Está seguro de eliminar TODOS los contactos? Esta acción no se puede deshacer.')) return;
-            
+
             try {
                 await apiRequest('clear', 'DELETE');
                 cargarDatos();
-                
+
             } catch (error) {
                 alert(`Error limpiando datos: ${error.message}`);
             }
@@ -318,10 +472,21 @@
             contactoEditando = null;
         }
 
+        function cerrarSesion() {
+            // Ocultar panel de administración
+            document.getElementById('admin-panel').classList.add('hidden');
+            // Mostrar pantalla de login
+            document.getElementById('login-screen').classList.remove('hidden');
+            // Limpiar el campo de contraseña
+            document.getElementById('admin-password').value = '';
+            // Limpiar datos en memoria
+            contactos = [];
+        }
+
         // 🎯 EVENT LISTENERS
         document.getElementById('contacto-form').addEventListener('submit', agregarContacto);
         document.getElementById('edit-form').addEventListener('submit', actualizarContacto);
-        document.getElementById('admin-password').addEventListener('keypress', function(e) {
+        document.getElementById('admin-password').addEventListener('keypress', function (e) {
             if (e.key === 'Enter') verificarLogin();
         });
 
@@ -333,4 +498,5 @@
         }, 30000);
     </script>
 </body>
+
 </html>
