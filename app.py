@@ -131,16 +131,21 @@ def obtener_datos():
         contactos = []
         for fila in resultados:
             # Manejar cada campo de forma segura
-            contacto = {
-                'id': fila[0] if len(fila) > 0 and fila[0] else 0,
-                'nombre': fila[1] if len(fila) > 1 and fila[1] else '',
-                'email': fila[2] if len(fila) > 2 and fila[2] else '',
-                'telefono': fila[3] if len(fila) > 3 and fila[3] else '',
-                'mensaje': fila[4] if len(fila) > 4 and fila[4] else '',
-                'fecha_creacion': formatear_fecha(fila[5]) if len(fila) > 5 else '',
-                'fecha_actualizacion': formatear_fecha(fila[6]) if len(fila) > 6 else ''
-            }
-            contactos.append(contacto)
+            try:
+                contacto = {
+                    'id': fila[0] if len(fila) > 0 and fila[0] else 0,
+                    'nombre': fila[1] if len(fila) > 1 and fila[1] else '',
+                    'email': fila[2] if len(fila) > 2 and fila[2] else '',
+                    'telefono': fila[3] if len(fila) > 3 and fila[3] else '',
+                    'mensaje': fila[4] if len(fila) > 4 and fila[4] else '',
+                    'fecha_creacion': formatear_fecha(fila[5]) if len(fila) > 5 else '',
+                    'fecha_actualizacion': formatear_fecha(fila[6]) if len(fila) > 6 else ''
+                }
+                contactos.append(contacto)
+            except Exception as row_error:
+                print(f"⚠️ Error procesando fila: {str(row_error)}")
+                # Continuar con la siguiente fila
+                continue
         
         print(f"📊 Datos obtenidos: {len(contactos)} contactos")
         return contactos
@@ -200,13 +205,22 @@ def admin_data():
 def admin_add():
     """Agregar nuevo contacto"""
     if not verificar_token():
+        print("❌ Token inválido en /admin/add")
         return jsonify({'error': 'Token de administrador inválido'}), 401
     
     try:
         datos = request.get_json()
+        print(f"📝 Datos recibidos en /admin/add: {datos}")
         
         # Validaciones básicas
+        if not datos:
+            print("❌ No se recibieron datos JSON")
+            return jsonify({
+                'error': 'No se recibieron datos'
+            }), 400
+            
         if not datos.get('nombre') or not datos.get('email'):
+            print(f"❌ Validación fallida - nombre: {datos.get('nombre')}, email: {datos.get('email')}")
             return jsonify({
                 'error': 'Nombre y email son requeridos'
             }), 400
