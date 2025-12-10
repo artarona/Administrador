@@ -204,23 +204,41 @@ def admin_data():
 @app.route('/admin/add', methods=['POST'])
 def admin_add():
     """Agregar nuevo contacto"""
+    # Log del request completo
+    logger.info("=" * 60)
+    logger.info("🔵 REQUEST /admin/add recibido")
+    logger.info(f"Content-Type: {request.content_type}")
+    logger.info(f"Content-Length: {request.content_length}")
+    
     if not verificar_token():
-        print("❌ Token inválido en /admin/add")
+        logger.error("❌ Token inválido en /admin/add")
         return jsonify({'error': 'Token de administrador inválido'}), 401
     
     try:
-        datos = request.get_json()
-        print(f"📝 Datos recibidos en /admin/add: {datos}")
+        # Intentar obtener datos JSON
+        datos = None
+        try:
+            datos = request.get_json(force=True, silent=False)
+            logger.info(f"📝 Datos JSON parseados: {datos}")
+        except Exception as json_error:
+            logger.error(f"❌ Error parseando JSON: {str(json_error)}")
+            # Intentar obtener el raw body
+            try:
+                raw_body = request.get_data(as_text=True)
+                logger.error(f"📄 Raw request body: {raw_body[:500]}")
+            except:
+                pass
         
         # Validaciones básicas
         if not datos:
-            print("❌ No se recibieron datos JSON")
+            logger.error("❌ No se recibieron datos JSON válidos")
             return jsonify({
-                'error': 'No se recibieron datos'
+                'error': 'No se recibieron datos válidos'
             }), 400
             
         if not datos.get('nombre') or not datos.get('email'):
-            print(f"❌ Validación fallida - nombre: {datos.get('nombre')}, email: {datos.get('email')}")
+            logger.error(f"❌ Validación fallida - nombre: '{datos.get('nombre')}', email: '{datos.get('email')}'")
+            logger.error(f"❌ Datos completos recibidos: {datos}")
             return jsonify({
                 'error': 'Nombre y email son requeridos'
             }), 400
@@ -234,9 +252,10 @@ def admin_add():
         try:
             db_cursor.execute("SELECT id FROM contactos WHERE email = %s", (datos['email'],))
             if db_cursor.fetchone():
+                logger.warning(f"⚠️ Email duplicado: {datos['email']}")
                 return jsonify({'error': 'Ya existe un contacto con este email'}), 400
         except Exception as e:
-            print(f"⚠️ Error verificando email existente: {str(e)}")
+            logger.error(f"⚠️ Error verificando email existente: {str(e)}")
         
         # Insertar nuevo contacto con TODAS las columnas necesarias
         current_timestamp = datetime.now()
@@ -262,8 +281,8 @@ def admin_add():
                 current_timestamp   # fecha_actualizacion
             ))
         except Exception as e:
-            print(f"❌ Error en inserción: {str(e)}")
-            traceback.print_exc()
+            logger.error(f"❌ Error en inserción: {str(e)}")
+            logger.error(traceback.format_exc())
             if db_connection:
                 db_connection.rollback()
             return jsonify({
@@ -274,7 +293,8 @@ def admin_add():
         contacto_id = db_cursor.fetchone()[0]
         db_connection.commit()
         
-        print(f"✅ Contacto agregado: {datos['nombre']} ({datos['email']})")
+        logger.info(f"✅ Contacto agregado exitosamente: {datos['nombre']} ({datos['email']})")
+        logger.info("=" * 60)
         
         return jsonify({
             'success': True,
@@ -284,8 +304,9 @@ def admin_add():
         })
         
     except Exception as e:
-        print(f"❌ Error en /admin/add: {str(e)}")
-        traceback.print_exc()
+        logger.error(f"❌ Error general en /admin/add: {str(e)}")
+        logger.error(traceback.format_exc())
+        logger.info("=" * 60)
         if db_connection:
             db_connection.rollback()
         return jsonify({
