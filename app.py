@@ -206,39 +206,39 @@ def admin_add():
     """Agregar nuevo contacto"""
     # Log del request completo
     logger.info("=" * 60)
-    logger.info("ðŸ”µ REQUEST /admin/add recibido")
+    logger.info("[REQUEST] /admin/add recibido")
     logger.info(f"Content-Type: {request.content_type}")
     logger.info(f"Content-Length: {request.content_length}")
     
     if not verificar_token():
-        logger.error("âŒ Token invÃ¡lido en /admin/add")
-        return jsonify({'error': 'Token de administrador invÃ¡lido'}), 401
+        logger.error("[ERROR] Token invalido en /admin/add")
+        return jsonify({'error': 'Token de administrador invalido'}), 401
     
     try:
         # Intentar obtener datos JSON
         datos = None
         try:
             datos = request.get_json(force=True, silent=False)
-            logger.info(f"ðŸ“ Datos JSON parseados: {datos}")
+            logger.info(f"[DATA] Datos JSON parseados: {datos}")
         except Exception as json_error:
-            logger.error(f"âŒ Error parseando JSON: {str(json_error)}")
+            logger.error(f"[ERROR] Error parseando JSON: {str(json_error)}")
             # Intentar obtener el raw body
             try:
                 raw_body = request.get_data(as_text=True)
-                logger.error(f"ðŸ“„ Raw request body: {raw_body[:500]}")
+                logger.error(f"[RAW] Raw request body: {raw_body[:500]}")
             except:
                 pass
         
-        # Validaciones bÃ¡sicas
+        # Validaciones basicas
         if not datos:
-            logger.error("âŒ No se recibieron datos JSON vÃ¡lidos")
+            logger.error("[ERROR] No se recibieron datos JSON validos")
             return jsonify({
-                'error': 'No se recibieron datos vÃ¡lidos'
+                'error': 'No se recibieron datos validos'
             }), 400
             
         if not datos.get('nombre') or not datos.get('email'):
-            logger.error(f"âŒ ValidaciÃ³n fallida - nombre: '{datos.get('nombre')}', email: '{datos.get('email')}'")
-            logger.error(f"âŒ Datos completos recibidos: {datos}")
+            logger.error(f"[VALIDATION] Validacion fallida - nombre: '{datos.get('nombre')}', email: '{datos.get('email')}'")
+            logger.error(f"[VALIDATION] Datos completos recibidos: {datos}")
             return jsonify({
                 'error': 'Nombre y email son requeridos'
             }), 400
@@ -252,10 +252,10 @@ def admin_add():
         try:
             db_cursor.execute("SELECT id FROM contactos WHERE email = %s", (datos['email'],))
             if db_cursor.fetchone():
-                logger.warning(f"âš ï¸ Email duplicado: {datos['email']}")
+                logger.warning(f"[WARNING] Email duplicado: {datos['email']}")
                 return jsonify({'error': 'Ya existe un contacto con este email'}), 400
         except Exception as e:
-            logger.error(f"âš ï¸ Error verificando email existente: {str(e)}")
+            logger.error(f"[WARNING] Error verificando email existente: {str(e)}")
         
         # Insertar nuevo contacto con TODAS las columnas necesarias
         current_timestamp = datetime.now()
@@ -281,7 +281,7 @@ def admin_add():
                 current_timestamp   # fecha_actualizacion
             ))
         except Exception as e:
-            logger.error(f"âŒ Error en inserciÃ³n: {str(e)}")
+            logger.error(f"[ERROR] Error en insercion: {str(e)}")
             logger.error(traceback.format_exc())
             if db_connection:
                 db_connection.rollback()
@@ -293,7 +293,7 @@ def admin_add():
         contacto_id = db_cursor.fetchone()[0]
         db_connection.commit()
         
-        logger.info(f"âœ… Contacto agregado exitosamente: {datos['nombre']} ({datos['email']})")
+        logger.info(f"[SUCCESS] Contacto agregado exitosamente: {datos['nombre']} ({datos['email']})")
         logger.info("=" * 60)
         
         return jsonify({
@@ -304,7 +304,7 @@ def admin_add():
         })
         
     except Exception as e:
-        logger.error(f"âŒ Error general en /admin/add: {str(e)}")
+        logger.error(f"[ERROR] Error general en /admin/add: {str(e)}")
         logger.error(traceback.format_exc())
         logger.info("=" * 60)
         if db_connection:
