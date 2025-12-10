@@ -2,8 +2,8 @@
 # -*- coding: utf-8 -*-
 
 """
-Sistema Administrativo Dantepropiedades - Versión Corregida Final
-Backend Flask con PostgreSQL y adaptación automática de estructura BD
+Sistema Administrativo Dantepropiedades - Solución Definitiva
+Backend Flask con PostgreSQL y manejo completo de columnas
 """
 
 import os
@@ -81,91 +81,8 @@ CORS(app, origins=[
 db_connection = None
 db_cursor = None
 
-def adaptar_estructura_bd():
-    """Adaptar la estructura de la base de datos para compatibilidad"""
-    global db_connection, db_cursor
-    
-    try:
-        print("🔧 Verificando y adaptando estructura de la base de datos...")
-        
-        # Verificar si la tabla contactos existe
-        db_cursor.execute("""
-            SELECT EXISTS (
-                SELECT FROM information_schema.tables 
-                WHERE table_schema = 'public' 
-                AND table_name = 'contactos'
-            )
-        """)
-        
-        tabla_existe = db_cursor.fetchone()[0]
-        print(f"📋 Tabla 'contactos' existe: {tabla_existe}")
-        
-        if not tabla_existe:
-            print("📝 Tabla 'contactos' no existe, creando...")
-            db_cursor.execute('''
-                CREATE TABLE contactos (
-                    id SERIAL PRIMARY KEY,
-                    nombre VARCHAR(255) NOT NULL,
-                    email VARCHAR(255) UNIQUE NOT NULL,
-                    telefono VARCHAR(50),
-                    mensaje TEXT,
-                    fecha_creacion TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                    fecha_actualizacion TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-                )
-            ''')
-            db_connection.commit()
-            print("✅ Tabla 'contactos' creada exitosamente")
-            return True
-        
-        # Si la tabla existe, verificar qué columnas existen
-        db_cursor.execute("""
-            SELECT column_name, data_type 
-            FROM information_schema.columns 
-            WHERE table_name = 'contactos'
-            ORDER BY column_name
-        """)
-        
-        columnas_info = db_cursor.fetchall()
-        columnas_existentes = [row[0] for row in columnas_info]
-        print(f"📊 Columnas existentes: {columnas_existentes}")
-        
-        # Verificar si existe la columna 'mensaje'
-        if 'mensaje' not in columnas_existentes:
-            print("➕ Agregando columna 'mensaje' a la tabla...")
-            db_cursor.execute('ALTER TABLE contactos ADD COLUMN mensaje TEXT')
-            db_connection.commit()
-            print("✅ Columna 'mensaje' agregada exitosamente")
-        else:
-            print("✅ Columna 'mensaje' ya existe")
-        
-        # Verificar si existe la columna 'fecha_creacion'
-        if 'fecha_creacion' not in columnas_existentes:
-            print("➕ Agregando columna 'fecha_creacion' a la tabla...")
-            db_cursor.execute('ALTER TABLE contactos ADD COLUMN fecha_creacion TIMESTAMP DEFAULT CURRENT_TIMESTAMP')
-            db_connection.commit()
-            print("✅ Columna 'fecha_creacion' agregada exitosamente")
-        else:
-            print("✅ Columna 'fecha_creacion' ya existe")
-        
-        # Verificar si existe la columna 'fecha_actualizacion'
-        if 'fecha_actualizacion' not in columnas_existentes:
-            print("➕ Agregando columna 'fecha_actualizacion' a la tabla...")
-            db_cursor.execute('ALTER TABLE contactos ADD COLUMN fecha_actualizacion TIMESTAMP DEFAULT CURRENT_TIMESTAMP')
-            db_connection.commit()
-            print("✅ Columna 'fecha_actualizacion' agregada exitosamente")
-        else:
-            print("✅ Columna 'fecha_actualizacion' ya existe")
-        
-        print("✅ Estructura de base de datos adaptada exitosamente")
-        return True
-        
-    except Exception as e:
-        print(f"❌ Error adaptando estructura BD: {str(e)}")
-        traceback.print_exc()
-        return False
-
 def conectar_postgresql():
-    """Conectar a PostgreSQL con manejo de errores y adaptación de BD"""
+    """Conectar a PostgreSQL con manejo de errores"""
     global db_connection, db_cursor
     
     try:
@@ -176,12 +93,7 @@ def conectar_postgresql():
         db_connection = psycopg2.connect(DATABASE_URL)
         db_cursor = db_connection.cursor()
         
-        # Adaptar estructura de la base de datos
-        if not adaptar_estructura_bd():
-            return False
-        
         print("✅ Conexión a PostgreSQL exitosa")
-        print("✅ Base de datos inicializada correctamente")
         print("✅ Sistema de almacenamiento PostgreSQL inicializado")
         
         return True
@@ -204,8 +116,8 @@ def obtener_datos():
         for fila in resultados:
             contacto = {
                 'id': fila[0],
-                'nombre': fila[1],
-                'email': fila[2],
+                'nombre': fila[1] if len(fila) > 1 and fila[1] else '',
+                'email': fila[2] if len(fila) > 2 and fila[2] else '',
                 'telefono': fila[3] if len(fila) > 3 and fila[3] else '',
                 'mensaje': fila[4] if len(fila) > 4 and fila[4] else '',
                 'fecha_creacion': fila[5].isoformat() if len(fila) > 5 and fila[5] else '',
@@ -294,21 +206,35 @@ def admin_add():
         except Exception as e:
             print(f"⚠️ Error verificando email existente: {str(e)}")
         
-        # Insertar nuevo contacto usando solo las columnas que sabemos que existen
-        # Basado en los logs: ['id', 'fecha_creacion', 'fecha_actualizacion', 'email', 'telefono', 'estado', 'notas', 'ip_address', 'user_agent', 'timestamp', 'nombre']
+        # Insertar nuevo contacto con TODAS las columnas necesarias
+        # Basado en los logs: todas las columnas excepto las que se auto-generan
+        current_timestamp = datetime.now()
+        
         try:
             db_cursor.execute('''
-                INSERT INTO contactos (nombre, email, telefono, estado)
-                VALUES (%s, %s, %s, 'activo')
+                INSERT INTO contactos (
+                    nombre, email, telefono, mensaje, estado, 
+                    ip_address, user_agent, timestamp, fecha_creacion, fecha_actualizacion
+                )
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                 RETURNING id
             ''', (
                 datos['nombre'],
                 datos['email'],
-                datos.get('telefono', '')
+                datos.get('telefono', ''),
+                datos.get('mensaje', ''),
+                'activo',  # estado
+                request.headers.get('X-Forwarded-For', request.remote_addr) or '0.0.0.0',  # ip_address
+                request.headers.get('User-Agent', 'Unknown'),  # user_agent
+                current_timestamp,  # timestamp (NOT NULL)
+                current_timestamp,  # fecha_creacion
+                current_timestamp   # fecha_actualizacion
             ))
         except Exception as e:
             print(f"❌ Error en inserción: {str(e)}")
             traceback.print_exc()
+            if db_connection:
+                db_connection.rollback()
             return jsonify({
                 'error': 'Error insertando en base de datos',
                 'details': str(e)
@@ -352,20 +278,28 @@ def admin_update():
             if not conectar_postgresql():
                 return jsonify({'error': 'Error de conexión a base de datos'}), 500
         
-        # Actualizar contacto usando las columnas que sabemos que existen
+        # Actualizar contacto con timestamp
+        current_timestamp = datetime.now()
+        
         try:
             db_cursor.execute('''
                 UPDATE contactos 
-                SET nombre = %s, telefono = %s, estado = 'activo', fecha_actualizacion = CURRENT_TIMESTAMP
+                SET nombre = %s, telefono = %s, mensaje = %s, estado = 'activo',
+                    fecha_actualizacion = %s, timestamp = %s
                 WHERE email = %s
             ''', (
                 datos.get('nombre', ''),
                 datos.get('telefono', ''),
+                datos.get('mensaje', ''),
+                current_timestamp,
+                current_timestamp,
                 datos['email']
             ))
         except Exception as e:
             print(f"❌ Error en actualización: {str(e)}")
             traceback.print_exc()
+            if db_connection:
+                db_connection.rollback()
             return jsonify({
                 'error': 'Error actualizando en base de datos',
                 'details': str(e)
@@ -492,12 +426,12 @@ def api_status():
     """Estado del API"""
     return jsonify({
         'api': 'Sistema Administrativo Dantepropiedades',
-        'version': '2.2.0',
+        'version': '2.3.0',
         'status': 'active',
         'database': 'PostgreSQL',
         'frontend': 'GitHub Pages + Backend Render',
         'cors': 'enabled',
-        'bd_compatibility': 'automatic_adaptation',
+        'bd_compatibility': 'full_columns_handling',
         'timestamp': datetime.now().isoformat()
     })
 
@@ -508,7 +442,7 @@ def init_app():
         print("🚀 Iniciando Sistema Administrativo Dantepropiedades...")
         print(f"🌍 Entorno: {FLASK_ENV}")
         print(f"🔑 Token de administrador: {ADMIN_TOKEN}")
-        print(f"🔧 BD Compatible: Adaptación automática habilitada")
+        print(f"🔧 Columnas BD: Manejo completo de todas las columnas")
         
         # Conectar a base de datos
         if not conectar_postgresql():
