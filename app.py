@@ -1,8 +1,8 @@
-#!/usr/bin/env python3
+﻿#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
 """
-Sistema Administrativo Dantepropiedades - Solución Final Fechas
+Sistema Administrativo Dantepropiedades - SoluciÃ³n Final Fechas
 Backend Flask con PostgreSQL y manejo robusto de fechas
 """
 
@@ -17,36 +17,36 @@ import logging
 import traceback
 import json
 
-# Configuración de logging
+# ConfiguraciÃ³n de logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Configuración inicial
+# ConfiguraciÃ³n inicial
 ADMIN_TOKEN = os.environ.get('ADMIN_TOKEN', '2205')
 FLASK_ENV = os.environ.get('FLASK_ENV', 'production')
 DATABASE_URL = os.environ.get('DATABASE_URL')
 
-print("RENDER: 🔍 DIAGNÓSTICO DE VARIABLES DE ENTORNO")
+print("RENDER: ðŸ” DIAGNÃ“STICO DE VARIABLES DE ENTORNO")
 print("=" * 50)
-print(f"🔧 ADMIN_TOKEN: ✅ {ADMIN_TOKEN}")
-print(f"🔧 DATABASE_URL: ✅ {'Configurada' if DATABASE_URL else 'NO configurada'}")
-print(f"🔧 FLASK_ENV: ✅ {FLASK_ENV}")
+print(f"ðŸ”§ ADMIN_TOKEN: âœ… {ADMIN_TOKEN}")
+print(f"ðŸ”§ DATABASE_URL: âœ… {'Configurada' if DATABASE_URL else 'NO configurada'}")
+print(f"ðŸ”§ FLASK_ENV: âœ… {FLASK_ENV}")
 
 # Variables de entorno del sistema
 if 'PORT' in os.environ:
     port = int(os.environ['PORT'])
-    print(f"🔧 PORT: {port}")
+    print(f"ðŸ”§ PORT: {port}")
 else:
     port = 5000
-    print(f"🔧 PORT: {port} (default)")
+    print(f"ðŸ”§ PORT: {port} (default)")
 
 if DATABASE_URL:
     # Ocultar credenciales en logs
     db_safe = DATABASE_URL.split('@')[-1] if '@' in DATABASE_URL else '***'
-    print(f"✅ DATABASE_URL desde variables de entorno: OK")
-    print(f"🔧 DATABASE_URL (segura): postgresql:***@{db_safe}")
+    print(f"âœ… DATABASE_URL desde variables de entorno: OK")
+    print(f"ðŸ”§ DATABASE_URL (segura): postgresql:***@{db_safe}")
 else:
-    print("❌ DATABASE_URL no encontrada en variables de entorno")
+    print("âŒ DATABASE_URL no encontrada en variables de entorno")
     # Intentar leer desde archivo .env
     try:
         from dotenv import load_dotenv
@@ -54,12 +54,12 @@ else:
         DATABASE_URL = os.environ.get('DATABASE_URL')
         if DATABASE_URL:
             db_safe = DATABASE_URL.split('@')[-1] if '@' in DATABASE_URL else '***'
-            print(f"✅ DATABASE_URL desde archivo .env: OK")
-            print(f"🔧 DATABASE_URL (.env, segura): postgresql:***@{db_safe}")
+            print(f"âœ… DATABASE_URL desde archivo .env: OK")
+            print(f"ðŸ”§ DATABASE_URL (.env, segura): postgresql:***@{db_safe}")
         else:
-            print("❌ DATABASE_URL tampoco en archivo .env")
+            print("âŒ DATABASE_URL tampoco en archivo .env")
     except ImportError:
-        print("❌ python-dotenv no instalado")
+        print("âŒ python-dotenv no instalado")
 
 print("=" * 50)
 
@@ -67,7 +67,7 @@ print("=" * 50)
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'dantepropiedades-secret-key-2024'
 
-# 🔧 CONFIGURACIÓN CORS PARA GITHUB PAGES Y RENDER
+# ðŸ”§ CONFIGURACIÃ“N CORS PARA GITHUB PAGES Y RENDER
 CORS(app, origins=[
     "https://artarona.github.io",     # GitHub Pages del frontend
     "https://administrador-63nc.onrender.com",  # Backend actual
@@ -77,7 +77,7 @@ CORS(app, origins=[
     "*"                              # Permitir todos en desarrollo
 ])
 
-# 🔗 VARIABLES GLOBALES PARA BASE DE DATOS
+# ðŸ”— VARIABLES GLOBALES PARA BASE DE DATOS
 db_connection = None
 db_cursor = None
 
@@ -105,17 +105,17 @@ def conectar_postgresql():
         if not DATABASE_URL:
             raise Exception("DATABASE_URL no configurada")
         
-        print("🔗 Intentando conectar a PostgreSQL...")
+        print("ðŸ”— Intentando conectar a PostgreSQL...")
         db_connection = psycopg2.connect(DATABASE_URL)
         db_cursor = db_connection.cursor()
         
-        print("✅ Conexión a PostgreSQL exitosa")
-        print("✅ Sistema de almacenamiento PostgreSQL inicializado")
+        print("âœ… ConexiÃ³n a PostgreSQL exitosa")
+        print("âœ… Sistema de almacenamiento PostgreSQL inicializado")
         
         return True
         
     except Exception as e:
-        print(f"❌ Error conectando a PostgreSQL: {str(e)}")
+        print(f"âŒ Error conectando a PostgreSQL: {str(e)}")
         return False
 
 def obtener_datos():
@@ -143,15 +143,15 @@ def obtener_datos():
                 }
                 contactos.append(contacto)
             except Exception as row_error:
-                print(f"⚠️ Error procesando fila: {str(row_error)}")
+                print(f"âš ï¸ Error procesando fila: {str(row_error)}")
                 # Continuar con la siguiente fila
                 continue
         
-        print(f"📊 Datos obtenidos: {len(contactos)} contactos")
+        print(f"ðŸ“Š Datos obtenidos: {len(contactos)} contactos")
         return contactos
         
     except Exception as e:
-        print(f"❌ Error obteniendo datos: {str(e)}")
+        print(f"âŒ Error obteniendo datos: {str(e)}")
         traceback.print_exc()
         return []
 
@@ -160,10 +160,10 @@ def verificar_token():
     token = request.args.get('token', '') or request.headers.get('Authorization', '').replace('Bearer ', '')
     return token == ADMIN_TOKEN
 
-# 🏠 RUTA PRINCIPAL - SERVE FRONTEND
+# ðŸ  RUTA PRINCIPAL - SERVE FRONTEND
 @app.route('/')
 def index():
-    """Servir el archivo index.html desde la raíz"""
+    """Servir el archivo index.html desde la raÃ­z"""
     try:
         return send_from_directory('.', 'index.html')
     except Exception as e:
@@ -171,18 +171,18 @@ def index():
 
 @app.route('/<path:filename>')
 def serve_static(filename):
-    """Servir archivos estáticos"""
+    """Servir archivos estÃ¡ticos"""
     try:
         return send_from_directory('.', filename)
     except Exception as e:
         return f"Error cargando archivo: {str(e)}", 404
 
-# 🔐 RUTAS DE ADMINISTRACIÓN - PROTEGIDAS POR TOKEN
+# ðŸ” RUTAS DE ADMINISTRACIÃ“N - PROTEGIDAS POR TOKEN
 @app.route('/admin/data', methods=['GET'])
 def admin_data():
     """Obtener todos los contactos"""
     if not verificar_token():
-        return jsonify({'error': 'Token de administrador inválido'}), 401
+        return jsonify({'error': 'Token de administrador invÃ¡lido'}), 401
     
     try:
         contactos = obtener_datos()
@@ -194,7 +194,7 @@ def admin_data():
         })
         
     except Exception as e:
-        print(f"❌ Error en /admin/data: {str(e)}")
+        print(f"âŒ Error en /admin/data: {str(e)}")
         traceback.print_exc()
         return jsonify({
             'error': 'Error interno del servidor',
@@ -206,56 +206,56 @@ def admin_add():
     """Agregar nuevo contacto"""
     # Log del request completo
     logger.info("=" * 60)
-    logger.info("🔵 REQUEST /admin/add recibido")
+    logger.info("ðŸ”µ REQUEST /admin/add recibido")
     logger.info(f"Content-Type: {request.content_type}")
     logger.info(f"Content-Length: {request.content_length}")
     
     if not verificar_token():
-        logger.error("❌ Token inválido en /admin/add")
-        return jsonify({'error': 'Token de administrador inválido'}), 401
+        logger.error("âŒ Token invÃ¡lido en /admin/add")
+        return jsonify({'error': 'Token de administrador invÃ¡lido'}), 401
     
     try:
         # Intentar obtener datos JSON
         datos = None
         try:
             datos = request.get_json(force=True, silent=False)
-            logger.info(f"📝 Datos JSON parseados: {datos}")
+            logger.info(f"ðŸ“ Datos JSON parseados: {datos}")
         except Exception as json_error:
-            logger.error(f"❌ Error parseando JSON: {str(json_error)}")
+            logger.error(f"âŒ Error parseando JSON: {str(json_error)}")
             # Intentar obtener el raw body
             try:
                 raw_body = request.get_data(as_text=True)
-                logger.error(f"📄 Raw request body: {raw_body[:500]}")
+                logger.error(f"ðŸ“„ Raw request body: {raw_body[:500]}")
             except:
                 pass
         
-        # Validaciones básicas
+        # Validaciones bÃ¡sicas
         if not datos:
-            logger.error("❌ No se recibieron datos JSON válidos")
+            logger.error("âŒ No se recibieron datos JSON vÃ¡lidos")
             return jsonify({
-                'error': 'No se recibieron datos válidos'
+                'error': 'No se recibieron datos vÃ¡lidos'
             }), 400
             
         if not datos.get('nombre') or not datos.get('email'):
-            logger.error(f"❌ Validación fallida - nombre: '{datos.get('nombre')}', email: '{datos.get('email')}'")
-            logger.error(f"❌ Datos completos recibidos: {datos}")
+            logger.error(f"âŒ ValidaciÃ³n fallida - nombre: '{datos.get('nombre')}', email: '{datos.get('email')}'")
+            logger.error(f"âŒ Datos completos recibidos: {datos}")
             return jsonify({
                 'error': 'Nombre y email son requeridos'
             }), 400
         
-        # Verificar conexión a DB
+        # Verificar conexiÃ³n a DB
         if not db_connection:
             if not conectar_postgresql():
-                return jsonify({'error': 'Error de conexión a base de datos'}), 500
+                return jsonify({'error': 'Error de conexiÃ³n a base de datos'}), 500
         
         # Verificar si el email ya existe
         try:
             db_cursor.execute("SELECT id FROM contactos WHERE email = %s", (datos['email'],))
             if db_cursor.fetchone():
-                logger.warning(f"⚠️ Email duplicado: {datos['email']}")
+                logger.warning(f"âš ï¸ Email duplicado: {datos['email']}")
                 return jsonify({'error': 'Ya existe un contacto con este email'}), 400
         except Exception as e:
-            logger.error(f"⚠️ Error verificando email existente: {str(e)}")
+            logger.error(f"âš ï¸ Error verificando email existente: {str(e)}")
         
         # Insertar nuevo contacto con TODAS las columnas necesarias
         current_timestamp = datetime.now()
@@ -281,7 +281,7 @@ def admin_add():
                 current_timestamp   # fecha_actualizacion
             ))
         except Exception as e:
-            logger.error(f"❌ Error en inserción: {str(e)}")
+            logger.error(f"âŒ Error en inserciÃ³n: {str(e)}")
             logger.error(traceback.format_exc())
             if db_connection:
                 db_connection.rollback()
@@ -293,7 +293,7 @@ def admin_add():
         contacto_id = db_cursor.fetchone()[0]
         db_connection.commit()
         
-        logger.info(f"✅ Contacto agregado exitosamente: {datos['nombre']} ({datos['email']})")
+        logger.info(f"âœ… Contacto agregado exitosamente: {datos['nombre']} ({datos['email']})")
         logger.info("=" * 60)
         
         return jsonify({
@@ -304,7 +304,7 @@ def admin_add():
         })
         
     except Exception as e:
-        logger.error(f"❌ Error general en /admin/add: {str(e)}")
+        logger.error(f"âŒ Error general en /admin/add: {str(e)}")
         logger.error(traceback.format_exc())
         logger.info("=" * 60)
         if db_connection:
@@ -318,7 +318,7 @@ def admin_add():
 def admin_update():
     """Actualizar contacto existente"""
     if not verificar_token():
-        return jsonify({'error': 'Token de administrador inválido'}), 401
+        return jsonify({'error': 'Token de administrador invÃ¡lido'}), 401
     
     try:
         datos = request.get_json()
@@ -328,7 +328,7 @@ def admin_update():
         
         if not db_connection:
             if not conectar_postgresql():
-                return jsonify({'error': 'Error de conexión a base de datos'}), 500
+                return jsonify({'error': 'Error de conexiÃ³n a base de datos'}), 500
         
         # Actualizar contacto con timestamp
         current_timestamp = datetime.now()
@@ -348,7 +348,7 @@ def admin_update():
                 datos['email']
             ))
         except Exception as e:
-            print(f"❌ Error en actualización: {str(e)}")
+            print(f"âŒ Error en actualizaciÃ³n: {str(e)}")
             traceback.print_exc()
             if db_connection:
                 db_connection.rollback()
@@ -369,7 +369,7 @@ def admin_update():
         })
         
     except Exception as e:
-        print(f"❌ Error en /admin/update: {str(e)}")
+        print(f"âŒ Error en /admin/update: {str(e)}")
         traceback.print_exc()
         if db_connection:
             db_connection.rollback()
@@ -382,7 +382,7 @@ def admin_update():
 def admin_delete():
     """Eliminar contacto"""
     if not verificar_token():
-        return jsonify({'error': 'Token de administrador inválido'}), 401
+        return jsonify({'error': 'Token de administrador invÃ¡lido'}), 401
     
     try:
         datos = request.get_json()
@@ -392,7 +392,7 @@ def admin_delete():
         
         if not db_connection:
             if not conectar_postgresql():
-                return jsonify({'error': 'Error de conexión a base de datos'}), 500
+                return jsonify({'error': 'Error de conexiÃ³n a base de datos'}), 500
         
         # Eliminar contacto
         db_cursor.execute("DELETE FROM contactos WHERE email = %s", (datos['email'],))
@@ -409,7 +409,7 @@ def admin_delete():
         })
         
     except Exception as e:
-        print(f"❌ Error en /admin/delete: {str(e)}")
+        print(f"âŒ Error en /admin/delete: {str(e)}")
         traceback.print_exc()
         if db_connection:
             db_connection.rollback()
@@ -422,12 +422,12 @@ def admin_delete():
 def admin_clear():
     """Limpiar todos los contactos"""
     if not verificar_token():
-        return jsonify({'error': 'Token de administrador inválido'}), 401
+        return jsonify({'error': 'Token de administrador invÃ¡lido'}), 401
     
     try:
         if not db_connection:
             if not conectar_postgresql():
-                return jsonify({'error': 'Error de conexión a base de datos'}), 500
+                return jsonify({'error': 'Error de conexiÃ³n a base de datos'}), 500
         
         # Contar contactos antes de eliminar
         db_cursor.execute("SELECT COUNT(*) FROM contactos")
@@ -445,7 +445,7 @@ def admin_clear():
         })
         
     except Exception as e:
-        print(f"❌ Error en /admin/clear: {str(e)}")
+        print(f"âŒ Error en /admin/clear: {str(e)}")
         traceback.print_exc()
         if db_connection:
             db_connection.rollback()
@@ -454,7 +454,7 @@ def admin_clear():
             'details': str(e)
         }), 500
 
-# 🔍 RUTAS DE SALUD Y ESTADO
+# ðŸ” RUTAS DE SALUD Y ESTADO
 @app.route('/health', methods=['GET'])
 def health_check():
     """Health check endpoint"""
@@ -487,32 +487,32 @@ def api_status():
         'timestamp': datetime.now().isoformat()
     })
 
-# 🚀 INICIALIZACIÓN DE LA APLICACIÓN
+# ðŸš€ INICIALIZACIÃ“N DE LA APLICACIÃ“N
 def init_app():
-    """Inicializar la aplicación"""
+    """Inicializar la aplicaciÃ³n"""
     try:
-        print("🚀 Iniciando Sistema Administrativo Dantepropiedades...")
-        print(f"🌍 Entorno: {FLASK_ENV}")
-        print(f"🔑 Token de administrador: {ADMIN_TOKEN}")
-        print(f"🔧 Fechas: Manejo robusto de strings y datetime")
+        print("ðŸš€ Iniciando Sistema Administrativo Dantepropiedades...")
+        print(f"ðŸŒ Entorno: {FLASK_ENV}")
+        print(f"ðŸ”‘ Token de administrador: {ADMIN_TOKEN}")
+        print(f"ðŸ”§ Fechas: Manejo robusto de strings y datetime")
         
         # Conectar a base de datos
         if not conectar_postgresql():
-            print("⚠️ Advertencia: No se pudo conectar a la base de datos inicialmente")
+            print("âš ï¸ Advertencia: No se pudo conectar a la base de datos inicialmente")
         
-        print("✅ Aplicación inicializada correctamente")
+        print("âœ… AplicaciÃ³n inicializada correctamente")
         return True
         
     except Exception as e:
-        print(f"❌ Error inicializando aplicación: {str(e)}")
+        print(f"âŒ Error inicializando aplicaciÃ³n: {str(e)}")
         traceback.print_exc()
         return False
 
-# 🎯 MAIN
+# ðŸŽ¯ MAIN
 if __name__ == '__main__':
     if init_app():
-        print(f"🎯 Iniciando servidor en puerto {port}...")
+        print(f"ðŸŽ¯ Iniciando servidor en puerto {port}...")
         app.run(host='0.0.0.0', port=port, debug=(FLASK_ENV != 'production'))
     else:
-        print("❌ No se pudo inicializar la aplicación")
+        print("âŒ No se pudo inicializar la aplicaciÃ³n")
         exit(1)
