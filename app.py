@@ -125,12 +125,18 @@ def obtener_datos():
             if not conectar_postgresql():
                 return []
         
-        db_cursor.execute("SELECT * FROM contactos ORDER BY fecha_creacion DESC")
+        # ✅ SELECT explícito con columnas en orden correcto
+        db_cursor.execute("""
+            SELECT id, nombre, email, telefono, mensaje, 
+                   fecha_creacion, fecha_actualizacion
+            FROM contactos 
+            ORDER BY fecha_creacion DESC
+        """)
         resultados = db_cursor.fetchall()
         
         contactos = []
         for fila in resultados:
-            # Manejar cada campo de forma segura
+            # Manejar cada campo de forma segura con índices correctos
             try:
                 contacto = {
                     'id': fila[0] if len(fila) > 0 and fila[0] else 0,
