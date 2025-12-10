@@ -177,6 +177,123 @@ def serve_static(filename):
     except Exception as e:
         return f"Error cargando archivo: {str(e)}", 404
 
+# API PUBLICA - FORMULARIO DE CONTACTO
+@app.route('/api/contacto', methods=['POST'])
+def contacto_publico():
+    """Endpoint publico para formulario de contacto (sin autenticacion)"""
+    logger.info("=" * 60)
+    logger.info("[REQUEST] /api/contacto recibido (formulario publico)")
+    logger.info(f"Content-Type: {request.content_type}")
+    logger.info(f"Origin: {request.headers.get('Origin', 'Unknown')}")
+    
+    try:
+        # Obtener datos JSON
+        datos = None
+        try:
+            datos = request.get_json(force=True, silent=False)
+            logger.info(f"[DATA] Datos del formulario: {datos}")
+        except Exception as json_error:
+            logger.error(f"[ERROR] Error parseando JSON: {str(json_error)}")
+            return jsonify({'error': 'Datos invalidos'}), 400
+        
+        # Validaciones basicas
+        if not datos:
+            logger.error("[ERROR] No se recibieron datos")
+            return jsonify({'error': 'No se recibieron datos'}), 400
+            
+        if not datos.get('nombre') or not datos.get('email') or not datos.get('mensaje'):
+            logger.error(f"[VALIDATION] Campos obligatorios faltantes")
+            return jsonify({'error': 'Nombre, email y mensaje son obligatorios'}), 400
+        
+        # Verificar conexion a DB
+        if not db_connection:
+            if not conectar_postgresql():
+                return jsonify({'error': 'Error de conexion a base de datos'}), 500
+        
+        # Construir mensaje completo con campos adicionales del formulario
+        mensaje_completo = datos.get('mensaje', '')
+        
+        # Agregar interes si existe
+        if datos.get('interes'):
+            interes_map = {
+                'compra': 'Comprar propiedad',
+                'venta': 'Vender propiedad',
+                'alquiler': 'Alquilar propiedad',
+                'consulta': 'Consulta general'
+            }
+            interes_texto = interes_map.get(datos['interes'], datos['interes'])
+            mensaje_completo = f"[Interes: {interes_texto}]\n{mensaje_completo}"
+        
+        # Agregar presupuesto si existe
+        if datos.get('presupuesto'):
+            presupuesto_map = {
+                'hasta-100k': 'Hasta $100.000 USD',
+                '100k-200k': '$100.000 - $200.000 USD',
+                '200k-300k': '$200.000 - $300.000 USD',
+                '300k-500k': '$300.000 - $500.000 USD',
+                'mas-500k': 'Mas de $500.000 USD'
+            }
+            presupuesto_texto = presupuesto_map.get(datos['presupuesto'], datos['presupuesto'])
+            mensaje_completo = f"[Presupuesto: {presupuesto_texto}]\n{mensaje_completo}"
+        
+        # Insertar en base de datos
+        current_timestamp = datetime.now()
+        
+        try:
+            db_cursor.execute('''
+                INSERT INTO contactos (
+                    nombre, email, telefono, mensaje, estado, 
+                    ip_address, user_agent, timestamp, fecha_creacion, fecha_actualizacion
+                )
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                RETURNING id
+            ''', (
+                datos['nombre'],
+                datos['email'],
+                datos.get('telefono', ''),
+                mensaje_completo,
+                'pendiente',  # Estado inicial para contactos del formulario publico
+                request.headers.get('X-Forwarded-For', request.remote_addr) or '0.0.0.0',
+                request.headers.get('User-Agent', 'Formulario Web'),
+                current_timestamp,
+                current_timestamp,
+                current_timestamp
+            ))
+        except Exception as e:
+            logger.error(f"[ERROR] Error en insercion: {str(e)}")
+            logger.error(traceback.format_exc())
+            if db_connection:
+                db_connection.rollback()
+            return jsonify({
+                'error': 'Error insertando en base de datos',
+                'details': str(e)
+            }), 500
+        
+        contacto_id = db_cursor.fetchone()[0]
+        db_connection.commit()
+        
+        logger.info(f"[SUCCESS] Contacto publico guardado: {datos['nombre']} ({datos['email']}) - ID: {contacto_id}")
+        logger.info("=" * 60)
+        
+        return jsonify({
+            'success': True,
+            'message': 'Contacto guardado exitosamente',
+            'id': contacto_id,
+            'timestamp': datetime.now().isoformat()
+        })
+        
+    except Exception as e:
+        logger.error(f"[ERROR] Error general en /api/contacto: {str(e)}")
+        logger.error(traceback.format_exc())
+        logger.info("=" * 60)
+        if db_connection:
+            db_connection.rollback()
+        return jsonify({
+            'error': 'Error interno del servidor',
+            'details': str(e)
+        }), 500
+
+
 # ðŸ” RUTAS DE ADMINISTRACIÃ“N - PROTEGIDAS POR TOKEN
 @app.route('/admin/data', methods=['GET'])
 def admin_data():
