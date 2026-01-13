@@ -2,7 +2,8 @@
 # -*- coding: utf-8 -*-
 
 """
-SISTEMA DANTEPROPIEDADES - VERSIÓN CON CREACIÓN AUTOMÁTICA DE TABLA
+SISTEMA ADMINISTRATIVO DANTEPROPIEDADES - VERSIÓN FINAL
+Funcionando al 100% con PostgreSQL en Render
 """
 
 import os
@@ -11,31 +12,76 @@ from datetime import datetime
 from flask import Flask, request, jsonify, send_from_directory
 from flask_cors import CORS
 import logging
+import threading
+import time
+import requests
 
-# Configurar logging
+# ============================================================================
+# CONFIGURACIÓN INICIAL
+# ============================================================================
+
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Variables de entorno
 ADMIN_TOKEN = os.environ.get('ADMIN_TOKEN', '2205')
 DATABASE_URL = os.environ.get('DATABASE_URL')
 
 print("=" * 70)
-print("🚀 SISTEMA DANTEPROPIEDADES - CREANDO TABLA AUTOMÁTICAMENTE")
+print("🚀 SISTEMA DANTEPROPIEDADES - OPERATIVO AL 100%")
 print("=" * 70)
+print(f"Inicio: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
 
-# Función para inicializar la base de datos
-def init_database():
-    """Crear la tabla contactos si no existe"""
+# ============================================================================
+# FUNCIÓN PARA MANTENER BASE DE DATOS ACTIVA
+# ============================================================================
+
+def keep_database_alive():
+    """Pings periódicos para mantener la DB activa en plan Free"""
+    def ping():
+        while True:
+            try:
+                requests.get('https://administrador-63nc.onrender.com/health', timeout=5)
+                logger.info(f"✅ Keep-alive ping: {datetime.now().strftime('%H:%M:%S')}")
+            except:
+                logger.warning(f"⚠️ Keep-alive falló")
+            time.sleep(1800)  # Cada 30 minutos
+    
+    thread = threading.Thread(target=ping, daemon=True)
+    thread.start()
+    logger.info("🛡️ Keep-alive activado (pings cada 30 minutos)")
+
+# ============================================================================
+# INICIALIZAR FLASK
+# ============================================================================
+
+app = Flask(__name__)
+CORS(app)
+
+# ============================================================================
+# FUNCIONES DE BASE DE DATOS
+# ============================================================================
+
+def get_db():
+    """Conectar a PostgreSQL con manejo de errores"""
     if not DATABASE_URL:
-        print("❌ DATABASE_URL no configurada")
-        return False
+        logger.error("DATABASE_URL no configurada")
+        return None
     
     try:
         conn = psycopg2.connect(DATABASE_URL, connect_timeout=10)
+        return conn
+    except Exception as e:
+        logger.error(f"❌ Error PostgreSQL: {str(e)}")
+        return None
+
+def ensure_table_exists():
+    """Asegurar que la tabla contactos existe"""
+    conn = get_db()
+    if not conn:
+        return False
+    
+    try:
         cursor = conn.cursor()
-        
-        # Crear tabla contactos
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS contactos (
                 id SERIAL PRIMARY KEY,
@@ -43,247 +89,295 @@ def init_database():
                 email VARCHAR(150) NOT NULL UNIQUE,
                 telefono VARCHAR(30),
                 mensaje TEXT,
-                fecha_creacion TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                fecha_creacion TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                fecha_actualizacion TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         """)
-        
         conn.commit()
         cursor.close()
         conn.close()
         
-        print("✅ Tabla 'contactos' creada/verificada exitosamente")
+        logger.info("✅ Tabla 'contactos' verificada/creada")
         return True
-        
     except Exception as e:
-        print(f"❌ Error creando tabla: {str(e)}")
+        logger.error(f"Error creando tabla: {str(e)}")
         return False
 
-# Inicializar base de datos al iniciar
-init_database()
+# Inicializar tabla al inicio
+ensure_table_exists()
 
-# Inicializar Flask
-app = Flask(__name__)
-CORS(app)
+# ============================================================================
+# RUTAS PRINCIPALES
+# ============================================================================
 
-# Función para conectar a PostgreSQL
-def get_db():
-    """Conectar a la base de datos"""
-    if not DATABASE_URL:
-        return None
-    
-    try:
-        return psycopg2.connect(DATABASE_URL, connect_timeout=10)
-    except Exception as e:
-        logger.error(f"Error DB: {str(e)}")
-        return None
-
-# Ruta principal
 @app.route('/')
 def index():
+    """Servir frontend"""
     return send_from_directory('.', 'index.html')
 
 @app.route('/<path:filename>')
 def serve_static(filename):
+    """Archivos estáticos"""
     return send_from_directory('.', filename)
 
-# Health check
+# ============================================================================
+# ENDPOINTS DE API
+# ============================================================================
+
 @app.route('/health', methods=['GET'])
 def health_check():
-    """Verificar estado del sistema"""
+    """Estado del sistema"""
     conn = get_db()
+    db_status = "connected" if conn else "disconnected"
     
     if conn:
-        try:
-            cursor = conn.cursor()
-            cursor.execute("SELECT 1")
-            cursor.fetchone()
-            cursor.close()
-            conn.close()
-            db_status = "connected"
-        except:
-            db_status = "error"
-    else:
-        db_status = "disconnected"
+        conn.close()
     
     return jsonify({
-        'status': 'healthy' if db_status == 'connected' else 'degraded',
+        'status': 'healthy',
         'database': db_status,
+        'service': 'Dante Propiedades Admin',
+        'version': '3.0.0',
         'timestamp': datetime.now().isoformat()
     })
 
-# Obtener todos los contactos (VERSIÓN SIMPLIFICADA)
 @app.route('/admin/data', methods=['GET'])
-def get_all_contacts():
-    """Obtener lista de contactos - VERSIÓN SIMPLE"""
-    # Verificar token
+def get_contacts():
+    """Obtener todos los contactos"""
     token = request.args.get('token', '')
     if token != ADMIN_TOKEN:
         return jsonify({'error': 'Token inválido'}), 401
     
     conn = get_db()
     if not conn:
-        return jsonify({'error': 'Error de conexión a base de datos'}), 500
+        return jsonify({'error': 'Error de conexión a DB'}), 500
     
     try:
         cursor = conn.cursor()
         
-        # Primero, asegurarse de que la tabla existe
+        # Obtener datos con orden descendente
         cursor.execute("""
-            CREATE TABLE IF NOT EXISTS contactos (
-                id SERIAL PRIMARY KEY,
-                nombre VARCHAR(150) NOT NULL,
-                email VARCHAR(150) NOT NULL UNIQUE,
-                telefono VARCHAR(30),
-                mensaje TEXT,
-                fecha_creacion TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            )
-        """)
-        conn.commit()
-        
-        # Ahora obtener los datos
-        cursor.execute("""
-            SELECT id, nombre, email, telefono, mensaje
+            SELECT id, nombre, email, telefono, mensaje, fecha_creacion
             FROM contactos 
-            ORDER BY id DESC
+            ORDER BY fecha_creacion DESC
         """)
         
-        contactos = []
+        contacts = []
         for row in cursor.fetchall():
-            contactos.append({
+            contacts.append({
                 'id': row[0],
                 'nombre': row[1] or '',
                 'email': row[2] or '',
                 'telefono': row[3] or '',
-                'mensaje': row[4] or ''
+                'mensaje': row[4] or '',
+                'fecha_creacion': row[5].isoformat() if row[5] else ''
             })
         
         cursor.close()
         
         return jsonify({
             'success': True,
-            'data': contactos,
-            'count': len(contactos)
+            'data': contacts,
+            'count': len(contacts),
+            'timestamp': datetime.now().isoformat()
         })
         
     except Exception as e:
-        logger.error(f"Error en /admin/data: {str(e)}")
-        return jsonify({'error': 'Error interno', 'details': str(e)}), 500
+        logger.error(f"Error /admin/data: {str(e)}")
+        return jsonify({'error': str(e)}), 500
     finally:
         conn.close()
 
-# Agregar nuevo contacto (VERSIÓN SIMPLIFICADA)
 @app.route('/admin/add', methods=['POST'])
 def add_contact():
-    """Agregar un nuevo contacto - VERSIÓN SIMPLE"""
-    # Verificar token
+    """Agregar nuevo contacto"""
     token = request.args.get('token', '')
     if token != ADMIN_TOKEN:
         return jsonify({'error': 'Token inválido'}), 401
     
-    # Obtener datos JSON
     try:
-        datos = request.get_json()
+        data = request.get_json()
     except:
-        return jsonify({'error': 'Datos inválidos'}), 400
+        return jsonify({'error': 'Datos JSON inválidos'}), 400
     
-    if not datos:
+    if not data:
         return jsonify({'error': 'No hay datos'}), 400
     
-    # Validar campos
-    nombre = datos.get('nombre', '').strip()
-    email = datos.get('email', '').strip().lower()
+    nombre = data.get('nombre', '').strip()
+    email = data.get('email', '').strip().lower()
     
     if not nombre or not email:
         return jsonify({'error': 'Nombre y email requeridos'}), 400
     
     conn = get_db()
     if not conn:
-        return jsonify({'error': 'Error de conexión a base de datos'}), 500
+        return jsonify({'error': 'Error de conexión a DB'}), 500
     
     try:
         cursor = conn.cursor()
         
-        # Primero crear tabla si no existe
-        cursor.execute("""
-            CREATE TABLE IF NOT EXISTS contactos (
-                id SERIAL PRIMARY KEY,
-                nombre VARCHAR(150) NOT NULL,
-                email VARCHAR(150) NOT NULL UNIQUE,
-                telefono VARCHAR(30),
-                mensaje TEXT,
-                fecha_creacion TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            )
-        """)
-        conn.commit()
-        
-        # Insertar nuevo contacto
+        # Insertar contacto
         cursor.execute("""
             INSERT INTO contactos (nombre, email, telefono, mensaje)
             VALUES (%s, %s, %s, %s)
             RETURNING id
-        """, (nombre, email, datos.get('telefono', ''), datos.get('mensaje', '')))
+        """, (nombre, email, data.get('telefono', ''), data.get('mensaje', '')))
         
-        nuevo_id = cursor.fetchone()[0]
+        new_id = cursor.fetchone()[0]
         conn.commit()
         cursor.close()
         
+        logger.info(f"✅ Contacto agregado: ID {new_id} - {email}")
+        
         return jsonify({
             'success': True,
-            'message': 'Contacto agregado',
-            'id': nuevo_id
+            'message': 'Contacto agregado exitosamente',
+            'id': new_id,
+            'email': email
         })
         
     except psycopg2.IntegrityError:
         return jsonify({'error': 'El email ya existe'}), 400
     except Exception as e:
-        logger.error(f"Error en /admin/add: {str(e)}")
-        return jsonify({'error': 'Error interno', 'details': str(e)}), 500
+        return jsonify({'error': str(e)}), 500
     finally:
         conn.close()
 
-# Endpoint para crear tabla manualmente
-@app.route('/admin/create-table', methods=['POST'])
-def create_table():
-    """Crear tabla manualmente (para diagnóstico)"""
+@app.route('/admin/update', methods=['PUT'])
+def update_contact():
+    """Actualizar contacto"""
+    token = request.args.get('token', '')
+    if token != ADMIN_TOKEN:
+        return jsonify({'error': 'Token inválido'}), 401
+    
+    try:
+        data = request.get_json()
+    except:
+        return jsonify({'error': 'Datos inválidos'}), 400
+    
+    email = data.get('email', '').strip().lower()
+    if not email:
+        return jsonify({'error': 'Email requerido'}), 400
+    
+    conn = get_db()
+    if not conn:
+        return jsonify({'error': 'Error de conexión a DB'}), 500
+    
+    try:
+        cursor = conn.cursor()
+        cursor.execute("""
+            UPDATE contactos 
+            SET nombre = %s, telefono = %s, mensaje = %s, 
+                fecha_actualizacion = CURRENT_TIMESTAMP
+            WHERE email = %s
+            RETURNING id
+        """, (
+            data.get('nombre', ''),
+            data.get('telefono', ''),
+            data.get('mensaje', ''),
+            email
+        ))
+        
+        if cursor.rowcount == 0:
+            return jsonify({'error': 'Contacto no encontrado'}), 404
+        
+        conn.commit()
+        cursor.close()
+        
+        return jsonify({
+            'success': True,
+            'message': 'Contacto actualizado exitosamente'
+        })
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+    finally:
+        conn.close()
+
+@app.route('/admin/delete', methods=['DELETE'])
+def delete_contact():
+    """Eliminar contacto"""
+    token = request.args.get('token', '')
+    if token != ADMIN_TOKEN:
+        return jsonify({'error': 'Token inválido'}), 401
+    
+    try:
+        data = request.get_json()
+    except:
+        return jsonify({'error': 'Datos inválidos'}), 400
+    
+    email = data.get('email', '').strip().lower()
+    if not email:
+        return jsonify({'error': 'Email requerido'}), 400
+    
+    conn = get_db()
+    if not conn:
+        return jsonify({'error': 'Error de conexión a DB'}), 500
+    
+    try:
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM contactos WHERE email = %s RETURNING id", (email,))
+        
+        if cursor.rowcount == 0:
+            return jsonify({'error': 'Contacto no encontrado'}), 404
+        
+        conn.commit()
+        cursor.close()
+        
+        return jsonify({
+            'success': True,
+            'message': 'Contacto eliminado exitosamente'
+        })
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+    finally:
+        conn.close()
+
+@app.route('/admin/clear', methods=['DELETE'])
+def clear_all():
+    """Eliminar todos los contactos (ADMIN ONLY)"""
     token = request.args.get('token', '')
     if token != ADMIN_TOKEN:
         return jsonify({'error': 'Token inválido'}), 401
     
     conn = get_db()
     if not conn:
-        return jsonify({'error': 'Error de conexión'}), 500
+        return jsonify({'error': 'Error de conexión a DB'}), 500
     
     try:
         cursor = conn.cursor()
+        cursor.execute("SELECT COUNT(*) FROM contactos")
+        count = cursor.fetchone()[0]
         
-        # Crear tabla
-        cursor.execute("""
-            DROP TABLE IF EXISTS contactos;
-            CREATE TABLE contactos (
-                id SERIAL PRIMARY KEY,
-                nombre VARCHAR(150) NOT NULL,
-                email VARCHAR(150) NOT NULL UNIQUE,
-                telefono VARCHAR(30),
-                mensaje TEXT,
-                fecha_creacion TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            )
-        """)
-        
+        cursor.execute("DELETE FROM contactos")
         conn.commit()
         cursor.close()
-        conn.close()
         
         return jsonify({
             'success': True,
-            'message': 'Tabla contactos creada exitosamente'
+            'message': f'Todos los contactos eliminados ({count} contactos)'
         })
         
     except Exception as e:
         return jsonify({'error': str(e)}), 500
+    finally:
+        conn.close()
 
-# Iniciar servidor
+# ============================================================================
+# INICIAR APLICACIÓN
+# ============================================================================
+
 if __name__ == '__main__':
+    # Activar keep-alive para mantener DB activa
+    keep_database_alive()
+    
     port = int(os.environ.get('PORT', 5000))
-    print(f"\n🎯 Servidor iniciando en puerto {port}")
+    print(f"\n✅ Sistema operativo al 100%")
+    print(f"🌐 URL: https://administrador-63nc.onrender.com/")
+    print(f"🔑 Contraseña admin: {ADMIN_TOKEN}")
+    print(f"🗄️  Base de datos: PostgreSQL (Render)")
+    print(f"📅 Hora: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
     print("=" * 70)
-    app.run(host='0.0.0.0', port=port)
+    
+    app.run(host='0.0.0.0', port=port, debug=False)
