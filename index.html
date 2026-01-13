@@ -7,16 +7,22 @@
     <title>Panel Admin - Dante Propiedades (Render)</title>
     <style>
         /* ESTILOS BÁSICOS */
+        * {
+            box-sizing: border-box;
+        }
+
         body {
             font-family: Arial, sans-serif;
             margin: 0;
             padding: 20px;
             background: #f5f5f5;
+            font-size: 14px;
         }
 
         .container {
             max-width: 1200px;
             margin: 0 auto;
+            width: 100%;
         }
 
         .login-container {
@@ -30,15 +36,17 @@
             justify-content: center;
             align-items: center;
             z-index: 1000;
+            padding: 20px;
         }
 
         .login-box {
             background: white;
-            padding: 40px;
+            padding: 30px;
             border-radius: 10px;
             box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
             text-align: center;
-            width: 300px;
+            width: 100%;
+            max-width: 300px;
         }
 
         .hidden {
@@ -47,18 +55,27 @@
 
         .admin-panel {
             background: white;
-            padding: 20px;
+            padding: 15px;
             border-radius: 10px;
             box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
             margin-bottom: 20px;
+            width: 100%;
         }
 
         .btn {
-            padding: 10px 20px;
+            padding: 10px 15px;
             border: none;
             border-radius: 5px;
             cursor: pointer;
             margin: 5px;
+            font-size: 14px;
+            transition: all 0.3s ease;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 5px;
+            min-width: 44px;
+            min-height: 44px;
         }
 
         .btn-primary {
@@ -66,9 +83,17 @@
             color: white;
         }
 
+        .btn-primary:hover {
+            background: #0056b3;
+        }
+
         .btn-success {
             background: #28a745;
             color: white;
+        }
+
+        .btn-success:hover {
+            background: #1e7e34;
         }
 
         .btn-danger {
@@ -76,14 +101,26 @@
             color: white;
         }
 
+        .btn-danger:hover {
+            background: #c82333;
+        }
+
         .btn-warning {
             background: #ffc107;
             color: black;
         }
 
+        .btn-warning:hover {
+            background: #e0a800;
+        }
+
         .btn-secondary {
             background: #6c757d;
             color: white;
+        }
+
+        .btn-secondary:hover {
+            background: #545b62;
         }
 
         .contacto-item {
@@ -93,21 +130,34 @@
             border-radius: 5px;
             background: #f9f9f9;
             display: flex;
-            justify-content: space-between;
-            align-items: center;
+            flex-direction: column;
+            gap: 10px;
         }
 
         .contacto-info {
             flex: 1;
+            word-break: break-word;
         }
 
         .contacto-actions {
             display: flex;
-            gap: 10px;
+            flex-direction: column;
+            gap: 8px;
+            width: 100%;
+        }
+
+        .contacto-actions-row {
+            display: flex;
+            gap: 8px;
+            width: 100%;
+        }
+
+        .contacto-actions-row .btn {
+            flex: 1;
         }
 
         .error {
-            color: red;
+            color: #dc3545;
             background: #ffe6e6;
             padding: 10px;
             border-radius: 5px;
@@ -115,7 +165,7 @@
         }
 
         .success {
-            color: green;
+            color: #28a745;
             background: #e6ffe6;
             padding: 10px;
             border-radius: 5px;
@@ -132,15 +182,26 @@
             padding: 15px;
             border-radius: 5px;
             margin-bottom: 20px;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            align-items: center;
         }
 
         input,
-        textarea {
+        textarea,
+        select {
             width: 100%;
-            padding: 8px;
+            padding: 10px;
             margin: 5px 0;
             border: 1px solid #ddd;
             border-radius: 4px;
+            font-size: 14px;
+        }
+
+        textarea {
+            min-height: 80px;
+            resize: vertical;
         }
 
         .modal {
@@ -154,6 +215,7 @@
             justify-content: center;
             align-items: center;
             z-index: 2000;
+            padding: 20px;
         }
 
         .modal-content {
@@ -161,7 +223,7 @@
             padding: 20px;
             border-radius: 10px;
             max-width: 500px;
-            width: 90%;
+            width: 100%;
             max-height: 80vh;
             overflow-y: auto;
         }
@@ -176,8 +238,8 @@
         /* ESTILOS PARA HEADER CON LOGO */
         .header-container {
             display: flex;
-            align-items: center;
-            justify-content: space-between;
+            flex-direction: column;
+            gap: 15px;
             margin-bottom: 20px;
             padding-bottom: 15px;
             border-bottom: 2px solid #007bff;
@@ -187,6 +249,7 @@
             display: flex;
             align-items: center;
             gap: 15px;
+            flex-wrap: wrap;
         }
 
         .logo-img {
@@ -201,7 +264,169 @@
             object-fit: contain;
             margin-bottom: 15px;
         }
+
+        .header-actions {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            width: 100%;
+        }
+
+        /* ESTILOS RESPONSIVE PARA MÓVILES */
+        @media (max-width: 768px) {
+            body {
+                padding: 10px;
+                font-size: 13px;
+            }
+
+            .admin-panel {
+                padding: 12px;
+                margin-bottom: 15px;
+            }
+
+            .btn {
+                padding: 8px 12px;
+                font-size: 13px;
+                min-width: 40px;
+                min-height: 40px;
+            }
+
+            .contacto-item {
+                padding: 12px;
+                margin: 8px 0;
+            }
+
+            .contacto-actions {
+                flex-direction: column;
+            }
+
+            .contacto-actions-row {
+                flex-direction: column;
+            }
+
+            .header-title h1 {
+                font-size: 1.5em;
+            }
+
+            .stats {
+                flex-direction: column;
+                align-items: stretch;
+            }
+
+            .stats .btn {
+                width: 100%;
+                margin: 3px 0;
+            }
+
+            input,
+            textarea,
+            select {
+                padding: 8px;
+                font-size: 13px;
+            }
+
+            .modal-content {
+                padding: 15px;
+                max-height: 85vh;
+            }
+        }
+
+        @media (max-width: 480px) {
+            .header-title h1 {
+                font-size: 1.3em;
+            }
+
+            .btn {
+                padding: 8px 10px;
+                font-size: 12px;
+            }
+
+            .contacto-item {
+                padding: 10px;
+            }
+
+            .login-box {
+                padding: 20px;
+            }
+        }
+
+        /* ESTILOS PARA TABLET Y ESCRITORIO */
+        @media (min-width: 769px) {
+            .contacto-item {
+                flex-direction: row;
+                justify-content: space-between;
+                align-items: flex-start;
+            }
+
+            .contacto-actions {
+                flex-direction: row;
+                width: auto;
+                min-width: 200px;
+            }
+
+            .contacto-actions-row {
+                flex-direction: row;
+                width: auto;
+            }
+
+            .header-container {
+                flex-direction: row;
+                justify-content: space-between;
+                align-items: center;
+            }
+
+            .header-actions {
+                width: auto;
+            }
+
+            .stats {
+                flex-direction: row;
+                align-items: center;
+            }
+
+            .stats .btn {
+                width: auto;
+            }
+        }
+
+        /* MEJORAS VISUALES */
+        .btn i {
+            font-size: 1.1em;
+        }
+
+        .contacto-info strong {
+            color: #333;
+            font-size: 1.1em;
+            display: block;
+            margin-bottom: 5px;
+        }
+
+        .contacto-info span {
+            color: #666;
+            display: block;
+            margin: 3px 0;
+            font-size: 0.95em;
+        }
+
+        .contacto-info small {
+            color: #888;
+            display: block;
+            margin: 3px 0;
+            font-size: 0.9em;
+        }
+
+        #total-contactos {
+            font-weight: bold;
+            color: #007bff;
+            font-size: 1.2em;
+        }
+
+        #form-message {
+            margin-top: 10px;
+        }
     </style>
+    <!-- Font Awesome para iconos -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
 </head>
 
 <body>
@@ -213,7 +438,9 @@
             <p>Ingrese la contraseña de administrador:</p>
             <input type="password" id="admin-password" placeholder="Contraseña" />
             <br><br>
-            <button class="btn btn-primary" onclick="verificarLogin()">Ingresar</button>
+            <button class="btn btn-primary" onclick="verificarLogin()">
+                <i class="fas fa-sign-in-alt"></i> Ingresar
+            </button>
             <div id="login-error" class="error hidden">Contraseña incorrecta</div>
         </div>
     </div>
@@ -227,34 +454,48 @@
                     <img src="llave.png" alt="Logo" class="logo-img">
                     <h1 style="margin: 0;">Panel Administrativo - Dantepropiedades</h1>
                 </div>
-                <button class="btn btn-secondary" onclick="cerrarSesion()">🚪 Salir</button>
+                <div class="header-actions">
+                    <button class="btn btn-secondary" onclick="cerrarSesion()">
+                        <i class="fas fa-sign-out-alt"></i> Salir
+                    </button>
+                </div>
             </div>
 
             <!-- ESTADÍSTICAS -->
             <div class="stats">
-                <strong>📊 Total de contactos: <span id="total-contactos">0</span></strong>
-                <button class="btn btn-warning" onclick="refrescarDatos()">🔄 Actualizar</button>
-                <button class="btn btn-danger" onclick="limpiarTodosDatos()">🗑️ Limpiar Todo</button>
+                <div style="flex: 1;">
+                    <strong><i class="fas fa-chart-bar"></i> Total de contactos: <span id="total-contactos">0</span></strong>
+                </div>
+                <div style="display: flex; gap: 5px; flex-wrap: wrap;">
+                    <button class="btn btn-warning" onclick="refrescarDatos()">
+                        <i class="fas fa-sync-alt"></i> Actualizar
+                    </button>
+                    <button class="btn btn-danger" onclick="limpiarTodosDatos()">
+                        <i class="fas fa-trash"></i> Limpiar Todo
+                    </button>
+                </div>
             </div>
 
             <!-- FORMULARIO DE NUEVO CONTACTO -->
             <div class="admin-panel">
-                <h3>➕ Agregar Nuevo Contacto</h3>
+                <h3><i class="fas fa-plus-circle"></i> Agregar Nuevo Contacto</h3>
                 <form id="contacto-form">
                     <input type="text" id="nombre" placeholder="Nombre completo" required />
                     <input type="email" id="email" placeholder="Email" required />
                     <input type="tel" id="telefono" placeholder="Teléfono" />
                     <textarea id="mensaje" placeholder="Mensaje"></textarea>
-                    <button type="submit" class="btn btn-success">💾 Guardar Contacto</button>
+                    <button type="submit" class="btn btn-success">
+                        <i class="fas fa-save"></i> Guardar Contacto
+                    </button>
                 </form>
                 <div id="form-message"></div>
             </div>
 
             <!-- LISTA DE CONTACTOS -->
             <div class="admin-panel">
-                <h3>📋 Lista de Contactos</h3>
+                <h3><i class="fas fa-list"></i> Lista de Contactos</h3>
                 <div id="contactos-list">
-                    <p class="loading">🔄 Cargando datos desde Render...</p>
+                    <p class="loading"><i class="fas fa-sync fa-spin"></i> Cargando datos desde Render...</p>
                 </div>
             </div>
         </div>
@@ -263,24 +504,28 @@
     <!-- MODAL DE EDICIÓN -->
     <div id="edit-modal" class="modal hidden">
         <div class="modal-content">
-            <h3>✏️ Editar Contacto</h3>
+            <h3><i class="fas fa-edit"></i> Editar Contacto</h3>
             <form id="edit-form">
                 <input type="text" id="edit-nombre" placeholder="Nombre completo" required />
                 <input type="email" id="edit-email" placeholder="Email" required />
                 <input type="tel" id="edit-telefono" placeholder="Teléfono" />
                 <textarea id="edit-mensaje" placeholder="Mensaje"></textarea>
-                <br>
-                <button type="submit" class="btn btn-success">💾 Actualizar</button>
-                <button type="button" class="btn" onclick="cerrarModal()">❌ Cancelar</button>
+                <div class="contacto-actions-row" style="margin-top: 15px;">
+                    <button type="submit" class="btn btn-primary">
+                        <i class="fas fa-save"></i> Actualizar
+                    </button>
+                    <button type="button" class="btn btn-secondary" onclick="cerrarModal()">
+                        <i class="fas fa-times"></i> Cancelar
+                    </button>
+                </div>
             </form>
         </div>
     </div>
 
     <script>
-        // 🔧 CONFIGURACIÓN - URLs Y CREDENCIALES CORREGIDAS
+        // 🔧 CONFIGURACIÓN
         const TOKEN = '2205';
         const ADMIN_PASSWORD = '2205';
-        // ✅ URL CORREGIDA - Backend real de Render
         const BASE_URL = 'https://administrador-63nc.onrender.com';
 
         // 📋 VARIABLES GLOBALES
@@ -302,7 +547,7 @@
             }
         }
 
-        // 🔗 FUNCIONES DE API - CORREGIDAS PARA RENDER
+        // 🔗 FUNCIONES DE API
         async function apiRequest(endpoint, method = 'GET', data = null) {
             try {
                 const options = {
@@ -316,13 +561,12 @@
                     options.body = JSON.stringify(data);
                 }
 
-                // ✅ CORRECCIÓN: Token como parámetro de query + URL correcta
                 const url = `${BASE_URL}/admin/${endpoint}?token=${TOKEN}`;
                 const response = await fetch(url, options);
                 const result = await response.json();
 
                 if (!response.ok) {
-                    throw new Error(`Error ${response.status}: ${result.message || 'Error desconocido'}`);
+                    throw new Error(`Error ${response.status}: ${result.message || result.error || 'Error desconocido'}`);
                 }
 
                 return result;
@@ -335,7 +579,7 @@
         // 📊 FUNCIONES DE DATOS
         async function cargarDatos() {
             try {
-                document.getElementById('contactos-list').innerHTML = '<p class="loading">🔄 Cargando datos desde Render...</p>';
+                document.getElementById('contactos-list').innerHTML = '<p class="loading"><i class="fas fa-sync fa-spin"></i> Cargando datos...</p>';
 
                 const response = await apiRequest('data', 'GET');
                 contactos = response.data || [];
@@ -346,7 +590,7 @@
             } catch (error) {
                 document.getElementById('contactos-list').innerHTML = `
                     <div class="error">
-                        ❌ Error cargando datos: ${error.message}
+                        <i class="fas fa-exclamation-triangle"></i> Error cargando datos: ${error.message}
                     </div>
                 `;
             }
@@ -356,7 +600,7 @@
             const container = document.getElementById('contactos-list');
 
             if (contactos.length === 0) {
-                container.innerHTML = '<p>📭 No hay contactos registrados</p>';
+                container.innerHTML = '<p><i class="fas fa-inbox"></i> No hay contactos registrados</p>';
                 return;
             }
 
@@ -365,15 +609,21 @@
                 html += `
                     <div class="contacto-item">
                         <div class="contacto-info">
-                            <strong>${contacto.nombre}</strong><br>
-                            <span>📧 ${contacto.email}</span><br>
-                            <span>📱 ${contacto.telefono || 'No especificado'}</span><br>
-                            <small>💬 ${contacto.mensaje || 'Sin mensaje'}</small><br>
-                            <small>📅 ${new Date(contacto.fecha_creacion).toLocaleString()}</small>
+                            <strong>${contacto.nombre}</strong>
+                            <span><i class="fas fa-envelope"></i> ${contacto.email}</span>
+                            <span><i class="fas fa-phone"></i> ${contacto.telefono || 'No especificado'}</span>
+                            <span><i class="fas fa-comment"></i> ${contacto.mensaje || 'Sin mensaje'}</span>
+                            <small><i class="fas fa-calendar"></i> ${new Date(contacto.fecha_creacion).toLocaleString()}</small>
                         </div>
                         <div class="contacto-actions">
-                            <button class="btn btn-primary" onclick="editarContacto('${contacto.email}')">✏️ Editar</button>
-                            <button class="btn btn-danger" onclick="eliminarContacto('${contacto.email}')">🗑️ Eliminar</button>
+                            <div class="contacto-actions-row">
+                                <button class="btn btn-primary" onclick="editarContacto('${contacto.email}')">
+                                    <i class="fas fa-edit"></i> Editar
+                                </button>
+                                <button class="btn btn-danger" onclick="eliminarContacto('${contacto.email}')">
+                                    <i class="fas fa-trash"></i> Eliminar
+                                </button>
+                            </div>
                         </div>
                     </div>
                 `;
@@ -384,71 +634,31 @@
 
         async function agregarContacto(event) {
             event.preventDefault();
-            
-            // Validar formulario
-            const nombre = document.getElementById('nombre').value.trim();
-            const email = document.getElementById('email').value.trim();
-            
-            if (!nombre || !email) {
-                mostrarMensaje('❌ Nombre y email son requeridos', 'error');
-                return;
-            }
-            
-            const datos = {
-                nombre: nombre,
-                email: email,
-                telefono: document.getElementById('telefono').value.trim(),
-                mensaje: document.getElementById('mensaje').value.trim()
-            };
-            
-            console.log('📝 Datos a enviar:', datos);
-            
+
+            const nombre = document.getElementById('nombre').value;
+            const email = document.getElementById('email').value;
+            const telefono = document.getElementById('telefono').value;
+            const mensaje = document.getElementById('mensaje').value;
+
             try {
-                mostrarMensaje('🔄 Enviando datos...', 'loading');
-                
-                const response = await apiRequest('add', 'POST', datos);
-                
-                console.log('✅ Respuesta exitosa:', response);
-                
-                mostrarMensaje('✅ Contacto agregado exitosamente', 'success');
-                
-                // Limpiar formulario
+                await apiRequest('add', 'POST', {
+                    nombre: nombre,
+                    email: email,
+                    telefono: telefono,
+                    mensaje: mensaje
+                });
+
+                document.getElementById('form-message').innerHTML = '<div class="success"><i class="fas fa-check-circle"></i> Contacto agregado exitosamente</div>';
                 document.getElementById('contacto-form').reset();
-                
-                // Recargar lista de contactos
-                setTimeout(() => {
-                    cargarDatos();
-                }, 1000);
-                
+                cargarDatos();
+
+                setTimeout(() => document.getElementById('form-message').innerHTML = '', 3000);
+
             } catch (error) {
-                console.error('❌ Error completo:', error);
-                
-                let mensajeError = 'Error al guardar contacto';
-                if (error.message.includes('Token')) {
-                    mensajeError = 'Error de autenticación. Token inválido.';
-                } else if (error.message.includes('Ya existe')) {
-                    mensajeError = 'Ya existe un contacto con este email';
-                }
-                
-                mostrarMensaje(`❌ ${mensajeError}: ${error.message}`, 'error');
+                document.getElementById('form-message').innerHTML = `<div class="error"><i class="fas fa-exclamation-circle"></i> Error guardando contacto: ${error.message}</div>`;
             }
         }
 
-        function mostrarMensaje(texto, tipo) {
-            const mensajeDiv = document.getElementById('form-message');
-            mensajeDiv.innerHTML = `<div class="${tipo}">${texto}</div>`;
-            
-            if (tipo !== 'loading') {
-                setTimeout(() => {
-                    mensajeDiv.innerHTML = '';
-                }, 5000);
-            }
-        }
-        
-        
-        
-        
-        
         function editarContacto(email) {
             const contacto = contactos.find(c => c.email === email);
             if (!contacto) return;
@@ -487,58 +697,6 @@
             }
         }
 
-        async function apiRequest(endpoint, method = 'GET', data = null) {
-            try {
-                console.log(`📤 [API Request] ${method} ${endpoint}`);
-                console.log(`📦 Data:`, data);
-                
-                const options = {
-                    method: method,
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Accept': 'application/json'
-                    }
-                };
-
-                if (data) {
-                    options.body = JSON.stringify(data);
-                }
-
-                // URL CORRECTA con token como query param
-                const url = `${BASE_URL}/admin/${endpoint}?token=${TOKEN}`;
-                console.log(`🔗 URL: ${url}`);
-
-                const response = await fetch(url, options);
-                
-                // Obtener la respuesta como texto primero para debug
-                const responseText = await response.text();
-                console.log(`📥 [API Response] Status: ${response.status}`);
-                console.log(`📥 [API Response] Body:`, responseText);
-                
-                let result;
-                try {
-                    result = JSON.parse(responseText);
-                } catch (e) {
-                    console.error('❌ Error parseando JSON:', e);
-                    throw new Error(`Respuesta inválida del servidor: ${responseText.substring(0, 100)}`);
-                }
-
-                if (!response.ok) {
-                    throw new Error(`Error ${response.status}: ${result.error || result.message || 'Error desconocido'}`);
-                }
-
-                return result;
-                
-            } catch (error) {
-                console.error('❌ [API Error] Detalles:', error);
-                throw error;
-            }
-        }
-                
-        
-        
-        
-        
         async function eliminarContacto(email) {
             if (!confirm('¿Está seguro de eliminar este contacto?')) return;
 
@@ -565,6 +723,18 @@
 
         function refrescarDatos() {
             cargarDatos();
+            mostrarMensaje('Datos actualizados', 'success');
+        }
+
+        function mostrarMensaje(texto, tipo) {
+            const mensajeDiv = document.createElement('div');
+            mensajeDiv.className = tipo;
+            mensajeDiv.innerHTML = `<i class="fas fa-info-circle"></i> ${texto}`;
+            
+            const container = document.querySelector('.container');
+            container.insertBefore(mensajeDiv, container.firstChild);
+            
+            setTimeout(() => mensajeDiv.remove(), 3000);
         }
 
         function cerrarModal() {
@@ -573,13 +743,9 @@
         }
 
         function cerrarSesion() {
-            // Ocultar panel de administración
             document.getElementById('admin-panel').classList.add('hidden');
-            // Mostrar pantalla de login
             document.getElementById('login-screen').classList.remove('hidden');
-            // Limpiar el campo de contraseña
             document.getElementById('admin-password').value = '';
-            // Limpiar datos en memoria
             contactos = [];
         }
 
@@ -590,12 +756,20 @@
             if (e.key === 'Enter') verificarLogin();
         });
 
-        // 🔄 AUTO-REFRESH cada 30 segundos
+        // 🔄 AUTO-REFRESH cada 60 segundos
         setInterval(() => {
             if (!document.getElementById('login-screen').classList.contains('hidden')) {
                 cargarDatos();
             }
-        }, 30000);
+        }, 60000);
+
+        // 🎨 Cargar Font Awesome si no está disponible
+        if (!document.querySelector('link[href*="font-awesome"]')) {
+            const faLink = document.createElement('link');
+            faLink.rel = 'stylesheet';
+            faLink.href = 'https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css';
+            document.head.appendChild(faLink);
+        }
     </script>
 </body>
 
