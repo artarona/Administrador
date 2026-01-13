@@ -2,8 +2,7 @@
 # -*- coding: utf-8 -*-
 
 """
-SISTEMA DANTEPROPIEDADES - VERSIÓN FINAL FUNCIONAL
-Base de datos: dantepropiedades_db_e3ku
+SISTEMA DANTEPROPIEDADES - VERSIÓN CON CREACIÓN AUTOMÁTICA DE TABLA
 """
 
 import os
@@ -22,45 +21,70 @@ ADMIN_TOKEN = os.environ.get('ADMIN_TOKEN', '2205')
 DATABASE_URL = os.environ.get('DATABASE_URL')
 
 print("=" * 70)
-print("🚀 SISTEMA DANTEPROPIEDADES - CONEXIÓN NUEVA")
+print("🚀 SISTEMA DANTEPROPIEDADES - CREANDO TABLA AUTOMÁTICAMENTE")
 print("=" * 70)
-print(f"Iniciando: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
 
-# Verificar conexión
-if DATABASE_URL:
-    print("✅ DATABASE_URL configurada")
-else:
-    print("❌ DATABASE_URL NO configurada - El sistema no funcionará")
+# Función para inicializar la base de datos
+def init_database():
+    """Crear la tabla contactos si no existe"""
+    if not DATABASE_URL:
+        print("❌ DATABASE_URL no configurada")
+        return False
+    
+    try:
+        conn = psycopg2.connect(DATABASE_URL, connect_timeout=10)
+        cursor = conn.cursor()
+        
+        # Crear tabla contactos
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS contactos (
+                id SERIAL PRIMARY KEY,
+                nombre VARCHAR(150) NOT NULL,
+                email VARCHAR(150) NOT NULL UNIQUE,
+                telefono VARCHAR(30),
+                mensaje TEXT,
+                fecha_creacion TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+        
+        conn.commit()
+        cursor.close()
+        conn.close()
+        
+        print("✅ Tabla 'contactos' creada/verificada exitosamente")
+        return True
+        
+    except Exception as e:
+        print(f"❌ Error creando tabla: {str(e)}")
+        return False
+
+# Inicializar base de datos al iniciar
+init_database()
 
 # Inicializar Flask
 app = Flask(__name__)
-CORS(app)  # Permitir todas las conexiones
+CORS(app)
 
 # Función para conectar a PostgreSQL
 def get_db():
     """Conectar a la base de datos"""
     if not DATABASE_URL:
-        logger.error("DATABASE_URL no configurada")
         return None
     
     try:
-        conn = psycopg2.connect(DATABASE_URL, connect_timeout=10)
-        return conn
+        return psycopg2.connect(DATABASE_URL, connect_timeout=10)
     except Exception as e:
-        logger.error(f"Error conectando a PostgreSQL: {str(e)}")
+        logger.error(f"Error DB: {str(e)}")
         return None
 
-# Ruta principal - Frontend
+# Ruta principal
 @app.route('/')
 def index():
     return send_from_directory('.', 'index.html')
 
-# Archivos estáticos
 @app.route('/<path:filename>')
 def serve_static(filename):
     return send_from_directory('.', filename)
-
-# ==================== ENDPOINTS DE API ====================
 
 # Health check
 @app.route('/health', methods=['GET'])
@@ -70,7 +94,6 @@ def health_check():
     
     if conn:
         try:
-            # Probar la conexión
             cursor = conn.cursor()
             cursor.execute("SELECT 1")
             cursor.fetchone()
@@ -85,18 +108,17 @@ def health_check():
     return jsonify({
         'status': 'healthy' if db_status == 'connected' else 'degraded',
         'database': db_status,
-        'timestamp': datetime.now().isoformat(),
-        'service': 'Dante Propiedades Admin'
+        'timestamp': datetime.now().isoformat()
     })
 
-# Obtener todos los contactos
+# Obtener todos los contactos (VERSIÓN SIMPLIFICADA)
 @app.route('/admin/data', methods=['GET'])
 def get_all_contacts():
-    """Obtener lista de contactos"""
+    """Obtener lista de contactos - VERSIÓN SIMPLE"""
     # Verificar token
     token = request.args.get('token', '')
     if token != ADMIN_TOKEN:
-        return jsonify({'error': 'Token de administrador inválido'}), 401
+        return jsonify({'error': 'Token inválido'}), 401
     
     conn = get_db()
     if not conn:
@@ -105,7 +127,7 @@ def get_all_contacts():
     try:
         cursor = conn.cursor()
         
-        # Crear tabla si no existe
+        # Primero, asegurarse de que la tabla existe
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS contactos (
                 id SERIAL PRIMARY KEY,
@@ -118,11 +140,11 @@ def get_all_contacts():
         """)
         conn.commit()
         
-        # Obtener datos
+        # Ahora obtener los datos
         cursor.execute("""
-            SELECT id, nombre, email, telefono, mensaje, fecha_creacion
+            SELECT id, nombre, email, telefono, mensaje
             FROM contactos 
-            ORDER BY fecha_creacion DESC
+            ORDER BY id DESC
         """)
         
         contactos = []
@@ -132,8 +154,7 @@ def get_all_contacts():
                 'nombre': row[1] or '',
                 'email': row[2] or '',
                 'telefono': row[3] or '',
-                'mensaje': row[4] or '',
-                'fecha_creacion': row[5].isoformat() if row[5] else ''
+                'mensaje': row[4] or ''
             })
         
         cursor.close()
@@ -141,42 +162,39 @@ def get_all_contacts():
         return jsonify({
             'success': True,
             'data': contactos,
-            'count': len(contactos),
-            'timestamp': datetime.now().isoformat()
+            'count': len(contactos)
         })
         
     except Exception as e:
         logger.error(f"Error en /admin/data: {str(e)}")
-        return jsonify({'error': str(e)}), 500
+        return jsonify({'error': 'Error interno', 'details': str(e)}), 500
     finally:
         conn.close()
 
-# Agregar nuevo contacto
+# Agregar nuevo contacto (VERSIÓN SIMPLIFICADA)
 @app.route('/admin/add', methods=['POST'])
 def add_contact():
-    """Agregar un nuevo contacto"""
+    """Agregar un nuevo contacto - VERSIÓN SIMPLE"""
     # Verificar token
     token = request.args.get('token', '')
     if token != ADMIN_TOKEN:
-        return jsonify({'error': 'Token de administrador inválido'}), 401
+        return jsonify({'error': 'Token inválido'}), 401
     
     # Obtener datos JSON
     try:
         datos = request.get_json()
     except:
-        return jsonify({'error': 'Formato de datos inválido'}), 400
+        return jsonify({'error': 'Datos inválidos'}), 400
     
     if not datos:
-        return jsonify({'error': 'No se recibieron datos'}), 400
+        return jsonify({'error': 'No hay datos'}), 400
     
-    # Validar campos requeridos
+    # Validar campos
     nombre = datos.get('nombre', '').strip()
     email = datos.get('email', '').strip().lower()
     
-    if not nombre:
-        return jsonify({'error': 'El nombre es requerido'}), 400
-    if not email:
-        return jsonify({'error': 'El email es requerido'}), 400
+    if not nombre or not email:
+        return jsonify({'error': 'Nombre y email requeridos'}), 400
     
     conn = get_db()
     if not conn:
@@ -185,95 +203,87 @@ def add_contact():
     try:
         cursor = conn.cursor()
         
-        # Verificar si el email ya existe
-        cursor.execute("SELECT id FROM contactos WHERE email = %s", (email,))
-        if cursor.fetchone():
-            return jsonify({'error': 'Ya existe un contacto con este email'}), 400
+        # Primero crear tabla si no existe
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS contactos (
+                id SERIAL PRIMARY KEY,
+                nombre VARCHAR(150) NOT NULL,
+                email VARCHAR(150) NOT NULL UNIQUE,
+                telefono VARCHAR(30),
+                mensaje TEXT,
+                fecha_creacion TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+        conn.commit()
         
         # Insertar nuevo contacto
         cursor.execute("""
             INSERT INTO contactos (nombre, email, telefono, mensaje)
             VALUES (%s, %s, %s, %s)
             RETURNING id
-        """, (
-            nombre,
-            email,
-            datos.get('telefono', ''),
-            datos.get('mensaje', '')
-        ))
+        """, (nombre, email, datos.get('telefono', ''), datos.get('mensaje', '')))
         
         nuevo_id = cursor.fetchone()[0]
         conn.commit()
         cursor.close()
         
-        logger.info(f"✅ Contacto agregado: ID {nuevo_id}, Email: {email}")
-        
         return jsonify({
             'success': True,
-            'message': 'Contacto agregado exitosamente',
-            'id': nuevo_id,
-            'email': email
+            'message': 'Contacto agregado',
+            'id': nuevo_id
         })
         
     except psycopg2.IntegrityError:
-        return jsonify({'error': 'El email ya está registrado'}), 400
+        return jsonify({'error': 'El email ya existe'}), 400
     except Exception as e:
         logger.error(f"Error en /admin/add: {str(e)}")
-        return jsonify({'error': str(e)}), 500
+        return jsonify({'error': 'Error interno', 'details': str(e)}), 500
     finally:
         conn.close()
 
-# Eliminar contacto
-@app.route('/admin/delete', methods=['DELETE'])
-def delete_contact():
-    """Eliminar contacto por email"""
+# Endpoint para crear tabla manualmente
+@app.route('/admin/create-table', methods=['POST'])
+def create_table():
+    """Crear tabla manualmente (para diagnóstico)"""
     token = request.args.get('token', '')
     if token != ADMIN_TOKEN:
         return jsonify({'error': 'Token inválido'}), 401
     
-    try:
-        datos = request.get_json()
-    except:
-        return jsonify({'error': 'Datos inválidos'}), 400
-    
-    email = datos.get('email', '').strip().lower()
-    if not email:
-        return jsonify({'error': 'Email es requerido'}), 400
-    
     conn = get_db()
     if not conn:
-        return jsonify({'error': 'Error de conexión a base de datos'}), 500
+        return jsonify({'error': 'Error de conexión'}), 500
     
     try:
         cursor = conn.cursor()
-        cursor.execute("DELETE FROM contactos WHERE email = %s", (email,))
         
-        if cursor.rowcount == 0:
-            return jsonify({'error': 'Contacto no encontrado'}), 404
+        # Crear tabla
+        cursor.execute("""
+            DROP TABLE IF EXISTS contactos;
+            CREATE TABLE contactos (
+                id SERIAL PRIMARY KEY,
+                nombre VARCHAR(150) NOT NULL,
+                email VARCHAR(150) NOT NULL UNIQUE,
+                telefono VARCHAR(30),
+                mensaje TEXT,
+                fecha_creacion TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
         
         conn.commit()
         cursor.close()
+        conn.close()
         
         return jsonify({
             'success': True,
-            'message': 'Contacto eliminado exitosamente'
+            'message': 'Tabla contactos creada exitosamente'
         })
         
     except Exception as e:
         return jsonify({'error': str(e)}), 500
-    finally:
-        conn.close()
 
-# ==================== INICIAR SERVIDOR ====================
-
+# Iniciar servidor
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
     print(f"\n🎯 Servidor iniciando en puerto {port}")
-    print("🌐 URL: http://0.0.0.0:{port}/")
-    print("🔧 Endpoints disponibles:")
-    print("   • /health - Verificar estado")
-    print("   • /admin/data?token=2205 - Obtener contactos")
-    print("   • /admin/add?token=2205 - Agregar contacto")
     print("=" * 70)
-    
-    app.run(host='0.0.0.0', port=port, debug=False)
+    app.run(host='0.0.0.0', port=port)
