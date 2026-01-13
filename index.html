@@ -384,31 +384,71 @@
 
         async function agregarContacto(event) {
             event.preventDefault();
-
-            const nombre = document.getElementById('nombre').value;
-            const email = document.getElementById('email').value;
-            const telefono = document.getElementById('telefono').value;
-            const mensaje = document.getElementById('mensaje').value;
-
+            
+            // Validar formulario
+            const nombre = document.getElementById('nombre').value.trim();
+            const email = document.getElementById('email').value.trim();
+            
+            if (!nombre || !email) {
+                mostrarMensaje('❌ Nombre y email son requeridos', 'error');
+                return;
+            }
+            
+            const datos = {
+                nombre: nombre,
+                email: email,
+                telefono: document.getElementById('telefono').value.trim(),
+                mensaje: document.getElementById('mensaje').value.trim()
+            };
+            
+            console.log('📝 Datos a enviar:', datos);
+            
             try {
-                await apiRequest('add', 'POST', {
-                    nombre: nombre,
-                    email: email,
-                    telefono: telefono,
-                    mensaje: mensaje
-                });
-
-                document.getElementById('form-message').innerHTML = '<div class="success">✅ Contacto agregado exitosamente</div>';
+                mostrarMensaje('🔄 Enviando datos...', 'loading');
+                
+                const response = await apiRequest('add', 'POST', datos);
+                
+                console.log('✅ Respuesta exitosa:', response);
+                
+                mostrarMensaje('✅ Contacto agregado exitosamente', 'success');
+                
+                // Limpiar formulario
                 document.getElementById('contacto-form').reset();
-                cargarDatos();
-
-                setTimeout(() => document.getElementById('form-message').innerHTML = '', 3000);
-
+                
+                // Recargar lista de contactos
+                setTimeout(() => {
+                    cargarDatos();
+                }, 1000);
+                
             } catch (error) {
-                document.getElementById('form-message').innerHTML = `<div class="error">❌ Error guardando contacto: ${error.message}</div>`;
+                console.error('❌ Error completo:', error);
+                
+                let mensajeError = 'Error al guardar contacto';
+                if (error.message.includes('Token')) {
+                    mensajeError = 'Error de autenticación. Token inválido.';
+                } else if (error.message.includes('Ya existe')) {
+                    mensajeError = 'Ya existe un contacto con este email';
+                }
+                
+                mostrarMensaje(`❌ ${mensajeError}: ${error.message}`, 'error');
             }
         }
 
+        function mostrarMensaje(texto, tipo) {
+            const mensajeDiv = document.getElementById('form-message');
+            mensajeDiv.innerHTML = `<div class="${tipo}">${texto}</div>`;
+            
+            if (tipo !== 'loading') {
+                setTimeout(() => {
+                    mensajeDiv.innerHTML = '';
+                }, 5000);
+            }
+        }
+        
+        
+        
+        
+        
         function editarContacto(email) {
             const contacto = contactos.find(c => c.email === email);
             if (!contacto) return;
@@ -447,6 +487,58 @@
             }
         }
 
+        async function apiRequest(endpoint, method = 'GET', data = null) {
+            try {
+                console.log(`📤 [API Request] ${method} ${endpoint}`);
+                console.log(`📦 Data:`, data);
+                
+                const options = {
+                    method: method,
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json'
+                    }
+                };
+
+                if (data) {
+                    options.body = JSON.stringify(data);
+                }
+
+                // URL CORRECTA con token como query param
+                const url = `${BASE_URL}/admin/${endpoint}?token=${TOKEN}`;
+                console.log(`🔗 URL: ${url}`);
+
+                const response = await fetch(url, options);
+                
+                // Obtener la respuesta como texto primero para debug
+                const responseText = await response.text();
+                console.log(`📥 [API Response] Status: ${response.status}`);
+                console.log(`📥 [API Response] Body:`, responseText);
+                
+                let result;
+                try {
+                    result = JSON.parse(responseText);
+                } catch (e) {
+                    console.error('❌ Error parseando JSON:', e);
+                    throw new Error(`Respuesta inválida del servidor: ${responseText.substring(0, 100)}`);
+                }
+
+                if (!response.ok) {
+                    throw new Error(`Error ${response.status}: ${result.error || result.message || 'Error desconocido'}`);
+                }
+
+                return result;
+                
+            } catch (error) {
+                console.error('❌ [API Error] Detalles:', error);
+                throw error;
+            }
+        }
+                
+        
+        
+        
+        
         async function eliminarContacto(email) {
             if (!confirm('¿Está seguro de eliminar este contacto?')) return;
 

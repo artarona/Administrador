@@ -611,6 +611,133 @@ def api_status():
         'timestamp': datetime.now().isoformat()
     })
 
+@app.route('/admin/add', methods=['POST'])
+def admin_add():
+    """Agregar nuevo contacto"""
+    # 🚨 AÑADIR LOGS DETALLADOS
+    logger.info("=" * 60)
+    logger.info("[REQUEST] /admin/add recibido")
+    logger.info(f"URL completa: {request.url}")
+    logger.info(f"Método: {request.method}")
+    logger.info(f"Content-Type: {request.content_type}")
+    logger.info(f"Headers: {dict(request.headers)}")
+    
+    # 🚨 VERIFICAR TOKEN PRIMERO
+    token = request.args.get('token', '')
+    logger.info(f"Token recibido: '{token}'")
+    logger.info(f"Token esperado: '{ADMIN_TOKEN}'")
+    
+    if token != ADMIN_TOKEN:
+        logger.error(f"[ERROR] Token inválido. Recibido: '{token}'")
+        return jsonify({'error': 'Token de administrador inválido'}), 401
+    
+    try:
+        # 🚨 INTENTAR OBTENER DATOS DE MANERA SEGURA
+        datos = None
+        try:
+            if request.content_type and 'application/json' in request.content_type:
+                datos = request.get_json(force=True, silent=True)
+                logger.info(f"[DATA] Datos JSON parseados: {datos}")
+            else:
+                # Intentar obtener datos de form-data
+                datos = request.form.to_dict()
+                logger.info(f"[DATA] Datos form-data: {datos}")
+        except Exception as json_error:
+            logger.error(f"[ERROR] Error parseando datos: {str(json_error)}")
+            # Intentar obtener raw body
+            raw_body = request.get_data(as_text=True)
+            logger.error(f"[RAW] Raw body: {raw_body[:500]}")
+            return jsonify({'error': 'Formato de datos inválido'}), 400
+        
+        # 🚨 VALIDACIONES BÁSICAS
+        if not datos:
+            logger.error("[ERROR] No se recibieron datos")
+            return jsonify({'error': 'No se recibieron datos'}), 400
+            
+        logger.info(f"[DEBUG] Datos recibidos completos: {datos}")
+        
+        nombre = datos.get('nombre')
+        email = datos.get('email')
+        
+        if not nombre or not email:
+            logger.error(f"[VALIDATION] Campos faltantes - nombre: '{nombre}', email: '{email}'")
+            return jsonify({'error': 'Nombre y email son requeridos'}), 400
+        
+        # 🚨 VERIFICAR CONEXIÓN A DB
+        if not db_connection or db_connection.closed:
+            logger.info("[INFO] Reconectando a la base de datos...")
+            if not conectar_postgresql():
+                return jsonify({'error': 'Error de conexión a base de datos'}), 500
+        
+        # 🚨 VERIFICAR SI EL EMAIL YA EXISTE
+        try:
+            db_cursor.execute("SELECT id FROM contactos WHERE email = %s", (email,))
+            if db_cursor.fetchone():
+                logger.warning(f"[WARNING] Email duplicado: {email}")
+                return jsonify({'error': 'Ya existe un contacto con este email'}), 400
+        except Exception as e:
+            logger.error(f"[WARNING] Error verificando email existente: {str(e)}")
+            # Continuar, no es crítico
+        
+        # 🚨 INSERTAR NUEVO CONTACTO
+        current_timestamp = datetime.now()
+        
+        try:
+            db_cursor.execute('''
+                INSERT INTO contactos (
+                    nombre, email, telefono, mensaje, estado, 
+                    ip_address, user_agent, timestamp, fecha_creacion, fecha_actualizacion
+                )
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                RETURNING id
+            ''', (
+                nombre,
+                email,
+                datos.get('telefono', ''),
+                datos.get('mensaje', ''),
+                'activo',
+                request.headers.get('X-Forwarded-For', request.remote_addr) or '0.0.0.0',
+                request.headers.get('User-Agent', 'Admin Panel'),
+                current_timestamp,
+                current_timestamp,
+                current_timestamp
+            ))
+            
+            contacto_id = db_cursor.fetchone()[0]
+            db_connection.commit()
+            
+            logger.info(f"[SUCCESS] Contacto agregado exitosamente. ID: {contacto_id}")
+            logger.info("=" * 60)
+            
+            return jsonify({
+                'success': True,
+                'message': 'Contacto agregado exitosamente',
+                'contacto_id': contacto_id,
+                'timestamp': datetime.now().isoformat()
+            })
+            
+        except Exception as e:
+            logger.error(f"[ERROR] Error en inserción SQL: {str(e)}")
+            logger.error(traceback.format_exc())
+            if db_connection:
+                db_connection.rollback()
+            return jsonify({
+                'error': 'Error en base de datos',
+                'details': str(e)
+            }), 500
+            
+    except Exception as e:
+        logger.error(f"[ERROR] Error general en /admin/add: {str(e)}")
+        logger.error(traceback.format_exc())
+        if db_connection:
+            db_connection.rollback()
+        return jsonify({
+            'error': 'Error interno del servidor',
+            'details': str(e)
+        }), 500
+
+
+
 # ðŸš€ INICIALIZACIÃ“N DE LA APLICACIÃ“N
 def init_app():
     """Inicializar la aplicaciÃ³n"""
