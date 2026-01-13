@@ -2,8 +2,8 @@
 # -*- coding: utf-8 -*-
 
 """
-Sistema Administrativo Dantepropiedades - Solución Final Fechas
-Backend Flask con PostgreSQL y manejo robusto de fechas
+Sistema Administrativo Dantepropiedades - Backend Flask con PostgreSQL
+Versión con manejo robusto de conexiones a base de datos
 """
 
 import os
@@ -16,6 +16,7 @@ from flask_cors import CORS
 import logging
 import traceback
 import json
+from psycopg2 import pool
 
 # Configuración de logging
 logging.basicConfig(level=logging.INFO)
@@ -26,150 +27,140 @@ ADMIN_TOKEN = os.environ.get('ADMIN_TOKEN', '2205')
 FLASK_ENV = os.environ.get('FLASK_ENV', 'production')
 DATABASE_URL = os.environ.get('DATABASE_URL')
 
-print("RENDER: 🔍 DIAGNÓSTICO DE VARIABLES DE ENTORNO")
-print("=" * 50)
-print(f"🔐 ADMIN_TOKEN: ✅ {ADMIN_TOKEN}")
-print(f"🔐 DATABASE_URL: ✅ {'Configurada' if DATABASE_URL else 'NO configurada'}")
-print(f"🔐 FLASK_ENV: ✅ {FLASK_ENV}")
+print("=" * 60)
+print("🚀 INICIANDO SISTEMA ADMINISTRATIVO DANTEPROPIEDADES")
+print("=" * 60)
 
-# Variables de entorno del sistema
-if 'PORT' in os.environ:
-    port = int(os.environ['PORT'])
-    print(f"🔐 PORT: {port}")
-else:
-    port = 5000
-    print(f"🔐 PORT: {port} (default)")
+# 🗄️ CONFIGURACIÓN DE CONEXIÓN A POSTGRESQL
+db_pool = None
 
-if DATABASE_URL:
-    # Ocultar credenciales en logs
-    db_safe = DATABASE_URL.split('@')[-1] if '@' in DATABASE_URL else '***'
-    print(f"✅ DATABASE_URL desde variables de entorno: OK")
-    print(f"🔐 DATABASE_URL (segura): postgresql:***@{db_safe}")
-else:
-    print("❌ DATABASE_URL no encontrada en variables de entorno")
-    # Intentar leer desde archivo .env
+def create_database_pool():
+    """Crear pool de conexiones a PostgreSQL"""
+    global db_pool
+    
+    if not DATABASE_URL:
+        print("❌ ERROR: DATABASE_URL no está configurada")
+        print("💡 Solución: Configura la variable DATABASE_URL en Render")
+        return None
+    
     try:
-        from dotenv import load_dotenv
-        load_dotenv()
-        DATABASE_URL = os.environ.get('DATABASE_URL')
-        if DATABASE_URL:
-            db_safe = DATABASE_URL.split('@')[-1] if '@' in DATABASE_URL else '***'
-            print(f"✅ DATABASE_URL desde archivo .env: OK")
-            print(f"🔐 DATABASE_URL (.env, segura): postgresql:***@{db_safe}")
+        # Parsear la URL de conexión
+        print(f"🔗 Intentando conectar a: {DATABASE_URL.split('@')[1] if '@' in DATABASE_URL else '***'}")
+        
+        # Crear pool de conexiones
+        db_pool = psycopg2.pool.SimpleConnectionPool(
+            1,  # min connections
+            10, # max connections
+            DATABASE_URL
+        )
+        
+        # Probar la conexión
+        conn = db_pool.getconn()
+        cursor = conn.cursor()
+        cursor.execute("SELECT version();")
+        db_version = cursor.fetchone()
+        
+        cursor.execute("SELECT current_database();")
+        db_name = cursor.fetchone()
+        
+        # Liberar conexión
+        db_pool.putconn(conn)
+        
+        print(f"✅ CONEXIÓN EXITOSA A POSTGRESQL")
+        print(f"📊 Versión: {db_version[0]}")
+        print(f"🗃️  Base de datos: {db_name[0]}")
+        
+        # Verificar tabla contactos
+        conn = db_pool.getconn()
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT EXISTS (
+                SELECT FROM information_schema.tables 
+                WHERE table_name = 'contactos'
+            );
+        """)
+        tabla_existe = cursor.fetchone()[0]
+        
+        if tabla_existe:
+            cursor.execute("SELECT COUNT(*) FROM contactos;")
+            total_contactos = cursor.fetchone()[0]
+            print(f"📋 Tabla 'contactos': ✅ EXISTE ({total_contactos} registros)")
         else:
-            print("❌ DATABASE_URL tampoco en archivo .env")
-    except ImportError:
-        print("❌ python-dotenv no instalado")
+            print("⚠️  Tabla 'contactos': ❌ NO EXISTE")
+            print("💡 Creando tabla...")
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS contactos (
+                    id SERIAL PRIMARY KEY,
+                    nombre VARCHAR(100) NOT NULL,
+                    email VARCHAR(100) NOT NULL UNIQUE,
+                    telefono VARCHAR(20),
+                    mensaje TEXT,
+                    estado VARCHAR(20) DEFAULT 'activo',
+                    ip_address VARCHAR(50),
+                    user_agent VARCHAR(255),
+                    timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    fecha_creacion TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    fecha_actualizacion TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                );
+            """)
+            conn.commit()
+            print("✅ Tabla 'contactos' creada exitosamente")
+        
+        db_pool.putconn(conn)
+        
+        return db_pool
+        
+    except Exception as e:
+        print(f"❌ ERROR DE CONEXIÓN A POSTGRESQL: {str(e)}")
+        print("💡 Posibles soluciones:")
+        print("   1. Verifica que DATABASE_URL sea correcta")
+        print("   2. Verifica que la base de datos esté activa en Render")
+        print("   3. Verifica las credenciales")
+        traceback.print_exc()
+        return None
 
-print("=" * 50)
+def get_db_connection():
+    """Obtener conexión a la base de datos"""
+    try:
+        if not db_pool:
+            print("⚠️  Pool no inicializado, intentando reconectar...")
+            create_database_pool()
+        
+        if db_pool:
+            return db_pool.getconn()
+        else:
+            print("❌ No se pudo obtener conexión: pool no disponible")
+            return None
+            
+    except Exception as e:
+        print(f"❌ Error obteniendo conexión: {str(e)}")
+        return None
+
+def release_db_connection(conn):
+    """Liberar conexión a la base de datos"""
+    if db_pool and conn:
+        try:
+            db_pool.putconn(conn)
+        except:
+            pass
 
 # Inicializar Flask
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'dantepropiedades-secret-key-2024'
 
-# 🔒 CONFIGURACIÓN CORS PARA GITHUB PAGES Y RENDER
+# 🔒 CONFIGURACIÓN CORS
 CORS(app, origins=[
-    "https://artarona.github.io",     # GitHub Pages del frontend
-    "https://administrador-63nc.onrender.com",  # Backend actual
-    "http://localhost:3000",          # Desarrollo local
-    "http://localhost:5000",          # Desarrollo local alternativo
-    "null",                          # Permitir null para desarrollo
-    "*"                              # Permitir todos en desarrollo
+    "https://artarona.github.io",
+    "https://administrador-63nc.onrender.com",
+    "http://localhost:3000",
+    "http://localhost:5000",
+    "*"  # Permitir todos temporalmente para pruebas
 ])
 
-# 🗄️ VARIABLES GLOBALES PARA BASE DE DATOS
-db_connection = None
-db_cursor = None
-
-def formatear_fecha(fecha_valor):
-    """Formatear fecha que puede ser string o datetime object"""
-    if not fecha_valor:
-        return ''
-    
-    # Si ya es un string, devolverlo
-    if isinstance(fecha_valor, str):
-        return fecha_valor
-    
-    # Si es datetime, convertir a ISO format
-    if hasattr(fecha_valor, 'isoformat'):
-        return fecha_valor.isoformat()
-    
-    # Convertir cualquier otro tipo a string
-    return str(fecha_valor)
-
-def conectar_postgresql():
-    """Conectar a PostgreSQL con manejo de errores"""
-    global db_connection, db_cursor
-    
-    try:
-        if not DATABASE_URL:
-            raise Exception("DATABASE_URL no configurada")
-        
-        print("🗄️ Intentando conectar a PostgreSQL...")
-        db_connection = psycopg2.connect(DATABASE_URL)
-        db_cursor = db_connection.cursor()
-        
-        print("✅ Conexión a PostgreSQL exitosa")
-        print("✅ Sistema de almacenamiento PostgreSQL inicializado")
-        
-        return True
-        
-    except Exception as e:
-        print(f"❌ Error conectando a PostgreSQL: {str(e)}")
-        return False
-
-def obtener_datos():
-    """Obtener todos los contactos de la base de datos"""
-    try:
-        if not db_connection:
-            if not conectar_postgresql():
-                return []
-        
-        # ✅ SELECT explícito con columnas en orden correcto
-        db_cursor.execute("""
-            SELECT id, nombre, email, telefono, mensaje, 
-                   fecha_creacion, fecha_actualizacion
-            FROM contactos 
-            ORDER BY fecha_creacion DESC
-        """)
-        resultados = db_cursor.fetchall()
-        
-        contactos = []
-        for fila in resultados:
-            # Manejar cada campo de forma segura con índices correctos
-            try:
-                contacto = {
-                    'id': fila[0] if len(fila) > 0 and fila[0] else 0,
-                    'nombre': fila[1] if len(fila) > 1 and fila[1] else '',
-                    'email': fila[2] if len(fila) > 2 and fila[2] else '',
-                    'telefono': fila[3] if len(fila) > 3 and fila[3] else '',
-                    'mensaje': fila[4] if len(fila) > 4 and fila[4] else '',
-                    'fecha_creacion': formatear_fecha(fila[5]) if len(fila) > 5 else '',
-                    'fecha_actualizacion': formatear_fecha(fila[6]) if len(fila) > 6 else ''
-                }
-                contactos.append(contacto)
-            except Exception as row_error:
-                print(f"⚠️ Error procesando fila: {str(row_error)}")
-                # Continuar con la siguiente fila
-                continue
-        
-        print(f"📊 Datos obtenidos: {len(contactos)} contactos")
-        return contactos
-        
-    except Exception as e:
-        print(f"❌ Error obteniendo datos: {str(e)}")
-        traceback.print_exc()
-        return []
-
-def verificar_token():
-    """Verificar token de administrador"""
-    token = request.args.get('token', '') or request.headers.get('Authorization', '').replace('Bearer ', '')
-    return token == ADMIN_TOKEN
-
-# 🏠 RUTA PRINCIPAL - SERVE FRONTEND
+# 🏠 RUTA PRINCIPAL
 @app.route('/')
 def index():
-    """Servir el archivo index.html desde la raíz"""
+    """Servir el archivo index.html"""
     try:
         return send_from_directory('.', 'index.html')
     except Exception as e:
@@ -183,131 +174,47 @@ def serve_static(filename):
     except Exception as e:
         return f"Error cargando archivo: {str(e)}", 404
 
-# API PUBLICA - FORMULARIO DE CONTACTO
-@app.route('/api/contacto', methods=['POST'])
-def contacto_publico():
-    """Endpoint publico para formulario de contacto (sin autenticacion)"""
-    logger.info("=" * 60)
-    logger.info("[REQUEST] /api/contacto recibido (formulario publico)")
-    logger.info(f"Content-Type: {request.content_type}")
-    logger.info(f"Origin: {request.headers.get('Origin', 'Unknown')}")
-    
-    try:
-        # Obtener datos JSON
-        datos = None
-        try:
-            datos = request.get_json(force=True, silent=False)
-            logger.info(f"[DATA] Datos del formulario: {datos}")
-        except Exception as json_error:
-            logger.error(f"[ERROR] Error parseando JSON: {str(json_error)}")
-            return jsonify({'error': 'Datos invalidos'}), 400
-        
-        # Validaciones basicas
-        if not datos:
-            logger.error("[ERROR] No se recibieron datos")
-            return jsonify({'error': 'No se recibieron datos'}), 400
-            
-        if not datos.get('nombre') or not datos.get('email') or not datos.get('mensaje'):
-            logger.error(f"[VALIDATION] Campos obligatorios faltantes")
-            return jsonify({'error': 'Nombre, email y mensaje son obligatorios'}), 400
-        
-        # Verificar conexion a DB
-        if not db_connection:
-            if not conectar_postgresql():
-                return jsonify({'error': 'Error de conexion a base de datos'}), 500
-        
-        # Construir mensaje completo con campos adicionales del formulario
-        mensaje_completo = datos.get('mensaje', '')
-        
-        # Agregar interes si existe
-        if datos.get('interes'):
-            interes_map = {
-                'compra': 'Comprar propiedad',
-                'venta': 'Vender propiedad',
-                'alquiler': 'Alquilar propiedad',
-                'consulta': 'Consulta general'
-            }
-            interes_texto = interes_map.get(datos['interes'], datos['interes'])
-            mensaje_completo = f"[Interes: {interes_texto}]\n{mensaje_completo}"
-        
-        # Agregar presupuesto si existe
-        if datos.get('presupuesto'):
-            presupuesto_map = {
-                'hasta-100k': 'Hasta $100.000 USD',
-                '100k-200k': '$100.000 - $200.000 USD',
-                '200k-300k': '$200.000 - $300.000 USD',
-                '300k-500k': '$300.000 - $500.000 USD',
-                'mas-500k': 'Mas de $500.000 USD'
-            }
-            presupuesto_texto = presupuesto_map.get(datos['presupuesto'], datos['presupuesto'])
-            mensaje_completo = f"[Presupuesto: {presupuesto_texto}]\n{mensaje_completo}"
-        
-        # Insertar en base de datos
-        current_timestamp = datetime.now()
-        
-        try:
-            db_cursor.execute('''
-                INSERT INTO contactos (
-                    nombre, email, telefono, mensaje, estado, 
-                    ip_address, user_agent, timestamp, fecha_creacion, fecha_actualizacion
-                )
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-                RETURNING id
-            ''', (
-                datos['nombre'],
-                datos['email'],
-                datos.get('telefono', ''),
-                mensaje_completo,
-                'pendiente',  # Estado inicial para contactos del formulario publico
-                request.headers.get('X-Forwarded-For', request.remote_addr) or '0.0.0.0',
-                request.headers.get('User-Agent', 'Formulario Web'),
-                current_timestamp,
-                current_timestamp,
-                current_timestamp
-            ))
-        except Exception as e:
-            logger.error(f"[ERROR] Error en insercion: {str(e)}")
-            logger.error(traceback.format_exc())
-            if db_connection:
-                db_connection.rollback()
-            return jsonify({
-                'error': 'Error insertando en base de datos',
-                'details': str(e)
-            }), 500
-        
-        contacto_id = db_cursor.fetchone()[0]
-        db_connection.commit()
-        
-        logger.info(f"[SUCCESS] Contacto publico guardado: {datos['nombre']} ({datos['email']}) - ID: {contacto_id}")
-        logger.info("=" * 60)
-        
-        return jsonify({
-            'success': True,
-            'message': 'Contacto guardado exitosamente',
-            'id': contacto_id,
-            'timestamp': datetime.now().isoformat()
-        })
-        
-    except Exception as e:
-        logger.error(f"[ERROR] Error general en /api/contacto: {str(e)}")
-        logger.error(traceback.format_exc())
-        logger.info("=" * 60)
-        if db_connection:
-            db_connection.rollback()
-        return jsonify({
-            'error': 'Error interno del servidor',
-            'details': str(e)
-        }), 500
+# 🔐 VERIFICAR TOKEN
+def verificar_token():
+    """Verificar token de administrador"""
+    token = request.args.get('token', '') or request.headers.get('Authorization', '').replace('Bearer ', '')
+    return token == ADMIN_TOKEN
 
-# 🔐 RUTAS DE ADMINISTRACIÓN - PROTEGIDAS POR TOKEN
+# 📊 RUTAS DE ADMINISTRACIÓN
 @app.route('/admin/data', methods=['GET'])
 def admin_data():
     """Obtener todos los contactos"""
     if not verificar_token():
         return jsonify({'error': 'Token de administrador inválido'}), 401
     
+    conn = None
     try:
-        contactos = obtener_datos()
+        conn = get_db_connection()
+        if not conn:
+            return jsonify({'error': 'Error de conexión a base de datos'}), 500
+        
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT id, nombre, email, telefono, mensaje, 
+                   fecha_creacion, fecha_actualizacion
+            FROM contactos 
+            ORDER BY fecha_creacion DESC
+        """)
+        resultados = cursor.fetchall()
+        
+        contactos = []
+        for fila in resultados:
+            contacto = {
+                'id': fila[0],
+                'nombre': fila[1] or '',
+                'email': fila[2] or '',
+                'telefono': fila[3] or '',
+                'mensaje': fila[4] or '',
+                'fecha_creacion': fila[5].isoformat() if fila[5] else '',
+                'fecha_actualizacion': fila[6].isoformat() if fila[6] else ''
+            }
+            contactos.append(contacto)
+        
         return jsonify({
             'success': True,
             'data': contactos,
@@ -322,91 +229,69 @@ def admin_data():
             'error': 'Error interno del servidor',
             'details': str(e)
         }), 500
+    finally:
+        if conn:
+            release_db_connection(conn)
 
 @app.route('/admin/add', methods=['POST'])
-def admin_add_contact():  # NOMBRE ÚNICO, NO DUPLICADO
-    """Agregar nuevo contacto desde panel admin"""
+def admin_add():
+    """Agregar nuevo contacto"""
     logger.info("=" * 60)
-    logger.info("[REQUEST] /admin/add recibido desde panel admin")
+    logger.info("[REQUEST] /admin/add recibido")
     
-    # Verificar token
-    token = request.args.get('token', '')
-    if token != ADMIN_TOKEN:
-        logger.error(f"[ERROR] Token inválido. Recibido: '{token}'")
+    if not verificar_token():
         return jsonify({'error': 'Token de administrador inválido'}), 401
     
+    conn = None
     try:
-        # Obtener datos JSON
-        datos = None
-        try:
-            datos = request.get_json(force=True, silent=True)
-            logger.info(f"[DATA] Datos recibidos: {datos}")
-        except Exception as json_error:
-            logger.error(f"[ERROR] Error parseando JSON: {str(json_error)}")
-            return jsonify({'error': 'Formato de datos inválido'}), 400
-        
-        # Validaciones básicas
+        # Obtener datos
+        datos = request.get_json(force=True, silent=True)
         if not datos:
-            logger.error("[ERROR] No se recibieron datos")
-            return jsonify({'error': 'No se recibieron datos'}), 400
-            
+            return jsonify({'error': 'No se recibieron datos válidos'}), 400
+        
+        # Validar datos requeridos
         if not datos.get('nombre') or not datos.get('email'):
-            logger.error(f"[VALIDATION] Campos requeridos faltantes")
             return jsonify({'error': 'Nombre y email son requeridos'}), 400
         
-        # Verificar conexión a DB
-        if not db_connection or db_connection.closed:
-            logger.info("[INFO] Reconectando a la base de datos...")
-            if not conectar_postgresql():
-                return jsonify({'error': 'Error de conexión a base de datos'}), 500
+        # Obtener conexión a DB
+        conn = get_db_connection()
+        if not conn:
+            logger.error("❌ No se pudo conectar a la base de datos")
+            return jsonify({'error': 'Error de conexión a base de datos'}), 500
         
-        # Verificar si el email ya existe
-        try:
-            db_cursor.execute("SELECT id FROM contactos WHERE email = %s", (datos['email'],))
-            if db_cursor.fetchone():
-                logger.warning(f"[WARNING] Email duplicado: {datos['email']}")
-                return jsonify({'error': 'Ya existe un contacto con este email'}), 400
-        except Exception as e:
-            logger.error(f"[WARNING] Error verificando email: {str(e)}")
-            # Continuar, no es crítico
+        cursor = conn.cursor()
+        
+        # Verificar si email ya existe
+        cursor.execute("SELECT id FROM contactos WHERE email = %s", (datos['email'],))
+        if cursor.fetchone():
+            return jsonify({'error': 'Ya existe un contacto con este email'}), 400
         
         # Insertar nuevo contacto
         current_timestamp = datetime.now()
+        cursor.execute("""
+            INSERT INTO contactos (
+                nombre, email, telefono, mensaje, estado,
+                ip_address, user_agent, timestamp, fecha_creacion, fecha_actualizacion
+            )
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            RETURNING id
+        """, (
+            datos['nombre'],
+            datos['email'],
+            datos.get('telefono', ''),
+            datos.get('mensaje', ''),
+            'activo',
+            request.headers.get('X-Forwarded-For', request.remote_addr) or '0.0.0.0',
+            request.headers.get('User-Agent', 'Admin Panel'),
+            current_timestamp,
+            current_timestamp,
+            current_timestamp
+        ))
         
-        try:
-            db_cursor.execute('''
-                INSERT INTO contactos (
-                    nombre, email, telefono, mensaje, estado, 
-                    ip_address, user_agent, timestamp, fecha_creacion, fecha_actualizacion
-                )
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-                RETURNING id
-            ''', (
-                datos['nombre'],
-                datos['email'],
-                datos.get('telefono', ''),
-                datos.get('mensaje', ''),
-                'activo',
-                request.headers.get('X-Forwarded-For', request.remote_addr) or '0.0.0.0',
-                request.headers.get('User-Agent', 'Admin Panel'),
-                current_timestamp,
-                current_timestamp,
-                current_timestamp
-            ))
-        except Exception as e:
-            logger.error(f"[ERROR] Error en inserción SQL: {str(e)}")
-            logger.error(traceback.format_exc())
-            if db_connection:
-                db_connection.rollback()
-            return jsonify({
-                'error': 'Error en base de datos',
-                'details': str(e)
-            }), 500
+        contacto_id = cursor.fetchone()[0]
+        conn.commit()
         
-        contacto_id = db_cursor.fetchone()[0]
-        db_connection.commit()
-        
-        logger.info(f"[SUCCESS] Contacto agregado: ID {contacto_id}")
+        logger.info(f"✅ Contacto agregado: ID {contacto_id}")
         logger.info("=" * 60)
         
         return jsonify({
@@ -417,79 +302,65 @@ def admin_add_contact():  # NOMBRE ÚNICO, NO DUPLICADO
         })
         
     except Exception as e:
-        logger.error(f"[ERROR] Error general en /admin/add: {str(e)}")
-        logger.error(traceback.format_exc())
-        if db_connection:
-            db_connection.rollback()
+        logger.error(f"❌ Error en /admin/add: {str(e)}")
+        traceback.print_exc()
+        if conn:
+            conn.rollback()
         return jsonify({
             'error': 'Error interno del servidor',
             'details': str(e)
         }), 500
+    finally:
+        if conn:
+            release_db_connection(conn)
 
 @app.route('/admin/update', methods=['PUT'])
 def admin_update():
-    """Actualizar contacto existente"""
+    """Actualizar contacto"""
     if not verificar_token():
         return jsonify({'error': 'Token de administrador inválido'}), 401
     
+    conn = None
     try:
         datos = request.get_json()
+        if not datos or not datos.get('email'):
+            return jsonify({'error': 'Email es requerido'}), 400
         
-        if not datos.get('email'):
-            return jsonify({'error': 'Email es requerido para actualizar'}), 400
+        conn = get_db_connection()
+        if not conn:
+            return jsonify({'error': 'Error de conexión a base de datos'}), 500
         
-        if not db_connection:
-            if not conectar_postgresql():
-                return jsonify({'error': 'Error de conexión a base de datos'}), 500
+        cursor = conn.cursor()
+        cursor.execute("""
+            UPDATE contactos 
+            SET nombre = %s, telefono = %s, mensaje = %s, fecha_actualizacion = %s
+            WHERE email = %s
+            RETURNING id
+        """, (
+            datos.get('nombre', ''),
+            datos.get('telefono', ''),
+            datos.get('mensaje', ''),
+            datetime.now(),
+            datos['email']
+        ))
         
-        # Actualizar solo los campos editables por el usuario
-        current_timestamp = datetime.now()
-        
-        try:
-            # ✅ UPDATE simplificado - solo campos editables
-            db_cursor.execute('''
-                UPDATE contactos 
-                SET nombre = %s, telefono = %s, mensaje = %s, fecha_actualizacion = %s
-                WHERE email = %s
-            ''', (
-                datos.get('nombre', ''),
-                datos.get('telefono', ''),
-                datos.get('mensaje', ''),
-                current_timestamp,
-                datos['email']
-            ))
-        except Exception as e:
-            print(f"❌ Error en actualización: {str(e)}")
-            traceback.print_exc()
-            if db_connection:
-                db_connection.rollback()
-            return jsonify({
-                'error': 'Error actualizando en base de datos',
-                'details': str(e)
-            }), 500
-        
-        if db_cursor.rowcount == 0:
+        if cursor.rowcount == 0:
             return jsonify({'error': 'Contacto no encontrado'}), 404
         
-        db_connection.commit()
-        
-        print(f"✅ Contacto actualizado: {datos.get('nombre')} ({datos['email']})")
+        conn.commit()
         
         return jsonify({
             'success': True,
-            'message': 'Contacto actualizado exitosamente',
-            'timestamp': datetime.now().isoformat()
+            'message': 'Contacto actualizado exitosamente'
         })
         
     except Exception as e:
-        print(f"❌ Error en /admin/update: {str(e)}")
-        traceback.print_exc()
-        if db_connection:
-            db_connection.rollback()
-        return jsonify({
-            'error': 'Error interno del servidor',
-            'details': str(e)
-        }), 500
+        if conn:
+            conn.rollback()
+        return jsonify({'error': str(e)}), 500
+    finally:
+        if conn:
+            release_db_connection(conn)
 
 @app.route('/admin/delete', methods=['DELETE'])
 def admin_delete():
@@ -497,39 +368,36 @@ def admin_delete():
     if not verificar_token():
         return jsonify({'error': 'Token de administrador inválido'}), 401
     
+    conn = None
     try:
         datos = request.get_json()
+        if not datos or not datos.get('email'):
+            return jsonify({'error': 'Email es requerido'}), 400
         
-        if not datos.get('email'):
-            return jsonify({'error': 'Email es requerido para eliminar'}), 400
+        conn = get_db_connection()
+        if not conn:
+            return jsonify({'error': 'Error de conexión a base de datos'}), 500
         
-        if not db_connection:
-            if not conectar_postgresql():
-                return jsonify({'error': 'Error de conexión a base de datos'}), 500
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM contactos WHERE email = %s RETURNING id", (datos['email'],))
         
-        # Eliminar contacto
-        db_cursor.execute("DELETE FROM contactos WHERE email = %s", (datos['email'],))
-        
-        if db_cursor.rowcount == 0:
+        if cursor.rowcount == 0:
             return jsonify({'error': 'Contacto no encontrado'}), 404
         
-        db_connection.commit()
+        conn.commit()
         
         return jsonify({
             'success': True,
-            'message': 'Contacto eliminado exitosamente',
-            'timestamp': datetime.now().isoformat()
+            'message': 'Contacto eliminado exitosamente'
         })
         
     except Exception as e:
-        print(f"❌ Error en /admin/delete: {str(e)}")
-        traceback.print_exc()
-        if db_connection:
-            db_connection.rollback()
-        return jsonify({
-            'error': 'Error interno del servidor',
-            'details': str(e)
-        }), 500
+        if conn:
+            conn.rollback()
+        return jsonify({'error': str(e)}), 500
+    finally:
+        if conn:
+            release_db_connection(conn)
 
 @app.route('/admin/clear', methods=['DELETE'])
 def admin_clear():
@@ -537,95 +405,109 @@ def admin_clear():
     if not verificar_token():
         return jsonify({'error': 'Token de administrador inválido'}), 401
     
+    conn = None
     try:
-        if not db_connection:
-            if not conectar_postgresql():
-                return jsonify({'error': 'Error de conexión a base de datos'}), 500
+        conn = get_db_connection()
+        if not conn:
+            return jsonify({'error': 'Error de conexión a base de datos'}), 500
         
-        # Contar contactos antes de eliminar
-        db_cursor.execute("SELECT COUNT(*) FROM contactos")
-        count = db_cursor.fetchone()[0]
+        cursor = conn.cursor()
+        cursor.execute("SELECT COUNT(*) FROM contactos")
+        count = cursor.fetchone()[0]
         
-        # Limpiar todos los datos
-        db_cursor.execute("DELETE FROM contactos")
-        db_connection.commit()
+        cursor.execute("DELETE FROM contactos")
+        conn.commit()
         
         return jsonify({
             'success': True,
-            'message': f'Todos los contactos eliminados ({count} contactos)',
-            'count_deleted': count,
-            'timestamp': datetime.now().isoformat()
+            'message': f'{count} contactos eliminados'
         })
         
     except Exception as e:
-        print(f"❌ Error en /admin/clear: {str(e)}")
-        traceback.print_exc()
-        if db_connection:
-            db_connection.rollback()
-        return jsonify({
-            'error': 'Error interno del servidor',
-            'details': str(e)
-        }), 500
+        if conn:
+            conn.rollback()
+        return jsonify({'error': str(e)}), 500
+    finally:
+        if conn:
+            release_db_connection(conn)
 
-# 🩺 RUTAS DE SALUD Y ESTADO
+# 🩺 RUTAS DE DIAGNÓSTICO
 @app.route('/health', methods=['GET'])
 def health_check():
-    """Health check endpoint"""
+    """Verificar estado del sistema"""
     try:
-        db_status = "connected" if db_connection and not db_connection.closed else "disconnected"
+        conn = get_db_connection()
+        if conn:
+            db_status = "connected"
+            release_db_connection(conn)
+        else:
+            db_status = "disconnected"
+        
         return jsonify({
-            'status': 'healthy',
-            'timestamp': datetime.now().isoformat(),
+            'status': 'healthy' if db_status == 'connected' else 'degraded',
             'database': db_status,
-            'environment': FLASK_ENV
+            'timestamp': datetime.now().isoformat(),
+            'service': 'Dante Propiedades Admin Panel'
         })
     except Exception as e:
         return jsonify({
             'status': 'unhealthy',
-            'error': str(e),
-            'timestamp': datetime.now().isoformat()
+            'error': str(e)
         }), 500
 
-@app.route('/api/status', methods=['GET'])
-def api_status():
-    """Estado del API"""
-    return jsonify({
-        'api': 'Sistema Administrativo Dantepropiedades',
-        'version': '2.4.0',
-        'status': 'active',
-        'database': 'PostgreSQL',
-        'frontend': 'GitHub Pages + Backend Render',
-        'cors': 'enabled',
-        'bd_compatibility': 'robust_date_handling',
+@app.route('/debug/database', methods=['GET'])
+def debug_database():
+    """Información de depuración de la base de datos"""
+    info = {
+        'database_url_configured': bool(DATABASE_URL),
+        'database_url_length': len(DATABASE_URL) if DATABASE_URL else 0,
+        'database_pool_exists': bool(db_pool),
+        'admin_token_configured': bool(ADMIN_TOKEN),
         'timestamp': datetime.now().isoformat()
-    })
+    }
+    
+    # Ocultar credenciales en el log
+    if DATABASE_URL and '@' in DATABASE_URL:
+        info['database_url_safe'] = 'postgresql://***@' + DATABASE_URL.split('@')[1]
+    
+    return jsonify(info)
 
-# 🚀 INICIALIZACIÓN DE LA APLICACIÓN
+# 🚀 INICIALIZACIÓN
 def init_app():
     """Inicializar la aplicación"""
-    try:
-        print("🚀 Iniciando Sistema Administrativo Dantepropiedades...")
-        print(f"🌍 Entorno: {FLASK_ENV}")
-        print(f"🔑 Token de administrador: {ADMIN_TOKEN}")
-        print(f"📅 Fechas: Manejo robusto de strings y datetime")
-        
-        # Conectar a base de datos
-        if not conectar_postgresql():
-            print("⚠️ Advertencia: No se pudo conectar a la base de datos inicialmente")
-        
+    print("=" * 60)
+    print("🔧 INICIALIZANDO APLICACIÓN...")
+    print("=" * 60)
+    
+    print(f"🔑 Token de admin: {'✅ Configurado' if ADMIN_TOKEN else '❌ No configurado'}")
+    
+    if DATABASE_URL:
+        print(f"🗃️  DATABASE_URL: ✅ Configurada")
+        # Ocultar credenciales en logs
+        safe_url = DATABASE_URL.split('@')[1] if '@' in DATABASE_URL else '***'
+        print(f"🔗 Conectando a: {safe_url}")
+    else:
+        print("❌ ERROR CRÍTICO: DATABASE_URL no configurada")
+        print("💡 Configura la variable DATABASE_URL en Render:")
+        print("   - Ve a tu servicio en Render")
+        print("   - Haz clic en 'Environment'")
+        print("   - Agrega DATABASE_URL con tu conexión PostgreSQL")
+        return False
+    
+    # Inicializar pool de conexiones
+    if create_database_pool():
         print("✅ Aplicación inicializada correctamente")
         return True
-        
-    except Exception as e:
-        print(f"❌ Error inicializando aplicación: {str(e)}")
-        traceback.print_exc()
+    else:
+        print("❌ Error inicializando conexión a base de datos")
         return False
 
 # 🎯 MAIN
 if __name__ == '__main__':
     if init_app():
-        print(f"🎯 Iniciando servidor en puerto {port}...")
-        app.run(host='0.0.0.0', port=port, debug=(FLASK_ENV != 'production'))
+        port = int(os.environ.get('PORT', 5000))
+        print(f"🎯 Servidor iniciado en puerto {port}")
+        app.run(host='0.0.0.0', port=port, debug=False)
     else:
         print("❌ No se pudo inicializar la aplicación")
         exit(1)
