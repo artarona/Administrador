@@ -480,6 +480,9 @@
                     <button class="btn btn-primary" onclick="refrescarDatos()">
                         <i class="fas fa-sync-alt"></i> Actualizar
                     </button>
+                    <button class="btn btn-warning" onclick="importarLocalStorage()" title="Importar 63 registros del localStorage">
+                        <i class="fas fa-download"></i> Importar localStorage
+                    </button>
                     <button class="btn btn-danger" onclick="limpiarTodosDatos()">
                         <i class="fas fa-trash"></i> Limpiar Todo
                     </button>
@@ -616,6 +619,19 @@
 
             let html = '';
             contactos.forEach(contacto => {
+                // Intentar parsear metadata si existe
+                let metadataInfo = '';
+                try {
+                    if (contacto.metadata) {
+                        const metadata = JSON.parse(contacto.metadata);
+                        if (metadata.interes || metadata.presupuesto) {
+                            metadataInfo = `<small><i class="fas fa-info-circle"></i> Interés: ${metadata.interes || 'N/A'} | Presupuesto: ${metadata.presupuesto || 'N/A'}</small>`;
+                        }
+                    }
+                } catch (e) {
+                    // Ignorar error de parseo
+                }
+
                 html += `
                     <div class="contacto-item">
                         <div class="contacto-info">
@@ -623,6 +639,7 @@
                             <span><i class="fas fa-envelope"></i> ${contacto.email}</span>
                             <span><i class="fas fa-phone"></i> ${contacto.telefono || 'No especificado'}</span>
                             <span><i class="fas fa-comment"></i> ${contacto.mensaje || 'Sin mensaje'}</span>
+                            ${metadataInfo}
                             <small><i class="fas fa-calendar"></i> ${new Date(contacto.fecha_creacion).toLocaleString()}</small>
                         </div>
                         <div class="contacto-actions">
@@ -719,62 +736,81 @@
             }
         }
 
-        
-        // En tu panel admin, agrega este botón:
+        // 🔄 FUNCIÓN PARA IMPORTAR DATOS DE LOCALSTORAGE
         async function importarLocalStorage() {
-            if (!confirm('¿Importar los 62 registros de localStorage a la base de datos?')) return;
-            
             try {
                 // Obtener datos de localStorage
                 const localData = JSON.parse(localStorage.getItem('consultas_dante_propiedades') || '[]');
                 
                 if (localData.length === 0) {
-                    alert('No hay datos en localStorage');
+                    alert('No hay datos en localStorage para importar');
                     return;
                 }
-                
-                // Importar cada registro
+
+                if (!confirm(`¿Importar ${localData.length} registros del localStorage al sistema central?`)) {
+                    return;
+                }
+
+                // Mostrar progreso
+                const messageDiv = document.getElementById('form-message');
+                messageDiv.innerHTML = '<div class="success"><i class="fas fa-sync fa-spin"></i> Importando datos... 0/' + localData.length + '</div>';
+
                 let importados = 0;
                 let errores = 0;
-                
-                for (const registro of localData) {
+
+                // Importar cada registro
+                for (let i = 0; i < localData.length; i++) {
+                    const registro = localData[i];
+                    
                     try {
+                        // Preparar metadata con campos adicionales
+                        const metadata = {
+                            interes: registro.interes,
+                            presupuesto: registro.presupuesto,
+                            fecha_local: registro.fecha,
+                            hora_local: registro.hora,
+                            source: 'importacion_localstorage',
+                            original_timestamp: registro.timestamp
+                        };
+
                         await apiRequest('add', 'POST', {
                             nombre: registro.nombre,
-                            email: registro.email,
+                            email: registro.email || 'sin-email@importado.com',
                             telefono: registro.telefono || '',
-                            mensaje: registro.mensaje || '',
-                            // Puedes agregar campos personalizados si tu API los soporta
-                            metadata: JSON.stringify({
-                                interes: registro.interes,
-                                presupuesto: registro.presupuesto,
-                                fecha_local: registro.fecha,
-                                hora_local: registro.hora
-                            })
+                            mensaje: registro.mensaje || 'Importado desde localStorage',
+                            metadata: JSON.stringify(metadata)
                         });
+
                         importados++;
+                        
+                        // Actualizar progreso cada 10 registros
+                        if (i % 10 === 0 || i === localData.length - 1) {
+                            messageDiv.innerHTML = `<div class="success"><i class="fas fa-sync fa-spin"></i> Importando datos... ${i+1}/${localData.length} (${importados} ok, ${errores} error)</div>`;
+                        }
+                        
                     } catch (error) {
-                        console.error('Error importando:', registro.nombre, error);
+                        console.error('Error importando registro:', registro.nombre, error);
                         errores++;
                     }
+
+                    // Pequeña pausa para no saturar el servidor
+                    await new Promise(resolve => setTimeout(resolve, 100));
                 }
+
+                // Mostrar resultado final
+                messageDiv.innerHTML = `<div class="success"><i class="fas fa-check-circle"></i> Importación completada: ${importados} registros importados, ${errores} errores</div>`;
                 
-                alert(`✅ Importación completada:\nImportados: ${importados}\nErrores: ${errores}`);
-                cargarDatos(); // Refrescar la lista
-                
+                // Recargar datos
+                setTimeout(() => {
+                    cargarDatos();
+                    setTimeout(() => messageDiv.innerHTML = '', 5000);
+                }, 1000);
+
             } catch (error) {
-                alert(`Error en importación: ${error.message}`);
+                document.getElementById('form-message').innerHTML = `<div class="error"><i class="fas fa-exclamation-circle"></i> Error en importación: ${error.message}</div>`;
             }
         }
 
-        // Agrega este botón en la sección de estadísticas:
-        // <button class="btn btn-warning" onclick="importarLocalStorage()">
-        //     <i class="fas fa-download"></i> Importar desde localStorage
-        // </button>
-        
-        
-        
-        
         async function limpiarTodosDatos() {
             if (!confirm('¿Está seguro de eliminar TODOS los contactos? Esta acción no se puede deshacer.')) return;
 
