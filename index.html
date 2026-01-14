@@ -272,6 +272,16 @@
             width: 100%;
         }
 
+        /* CORRECCIÓN ESPECÍFICA: Botón Actualizar debe ser AZUL como Editar */
+        #edit-form .btn[type="submit"] {
+            background: #007bff !important;
+            color: white !important;
+        }
+        
+        #edit-form .btn[type="submit"]:hover {
+            background: #0056b3 !important;
+        }
+
         /* ESTILOS RESPONSIVE PARA MÓVILES */
         @media (max-width: 768px) {
             body {
@@ -467,7 +477,7 @@
                     <strong><i class="fas fa-chart-bar"></i> Total de contactos: <span id="total-contactos">0</span></strong>
                 </div>
                 <div style="display: flex; gap: 5px; flex-wrap: wrap;">
-                    <button class="btn btn-warning" onclick="refrescarDatos()">
+                    <button class="btn btn-primary" onclick="refrescarDatos()">
                         <i class="fas fa-sync-alt"></i> Actualizar
                     </button>
                     <button class="btn btn-danger" onclick="limpiarTodosDatos()">
