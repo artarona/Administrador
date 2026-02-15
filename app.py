@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 
 """
-SISTEMA ADMINISTRATIVO DANTEPROPIEDADES - USANDO BASE DE DATOS EXISTENTE
+SISTEMA ADMINISTRATIVO DANTEPROPIEDADES - VERSIÓN MEJORADA CON DEBUG
 """
 
 import os
@@ -11,43 +11,49 @@ from datetime import datetime
 from flask import Flask, request, jsonify, send_from_directory
 from flask_cors import CORS
 import logging
-import threading
-import time
-import requests
+import sys
 
 # ============================================================================
-# CONFIGURACIÓN INICIAL - USANDO TU BASE DE DATOS ACTIVA
+# CONFIGURACIÓN INICIAL
 # ============================================================================
 
-logging.basicConfig(level=logging.INFO)
+# Configurar logging para que se vea en Render
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    handlers=[logging.StreamHandler(sys.stdout)]
+)
 logger = logging.getLogger(__name__)
 
 ADMIN_TOKEN = os.environ.get('ADMIN_TOKEN', '2205')
 
-# TU BASE DE DATOS ACTIVA (ya funcionando en otra app)
+# TU BASE DE DATOS ACTIVA
 DATABASE_URL = "postgresql://dantepropiedadesdb_user:wiBPwMvLzG01zHkHKyqEsTfHEhcZzfKi@dpg-d62aqenpm1nc73fqi3m0-a.oregon-postgres.render.com:5432/dantepropiedadesdb"
 
 print("=" * 70)
-print("🚀 SISTEMA DANTEPROPIEDADES - USANDO BASE EXISTENTE")
+print("🚀 SISTEMA DANTEPROPIEDADES - VERSIÓN MEJORADA")
 print("=" * 70)
 print(f"Inicio: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
 print(f"📊 Base de datos: {DATABASE_URL.split('@')[1].split('/')[0]}")
+print("=" * 70)
 
 # ============================================================================
 # INICIALIZAR FLASK
 # ============================================================================
 
 app = Flask(__name__)
-CORS(app)
+CORS(app)  # Permitir peticiones desde cualquier origen
 
 # ============================================================================
 # FUNCIONES DE BASE DE DATOS
 # ============================================================================
 
 def get_db():
-    """Conectar a PostgreSQL"""
+    """Conectar a PostgreSQL con manejo de errores detallado"""
     try:
+        logger.info("Intentando conectar a PostgreSQL...")
         conn = psycopg2.connect(DATABASE_URL, connect_timeout=10)
+        logger.info("✅ Conexión a PostgreSQL exitosa")
         return conn
     except Exception as e:
         logger.error(f"❌ Error PostgreSQL: {str(e)}")
@@ -57,6 +63,7 @@ def ensure_table_exists():
     """Asegurar que la tabla contactos existe"""
     conn = get_db()
     if not conn:
+        logger.error("No se pudo conectar para verificar tabla")
         return False
     
     try:
@@ -72,7 +79,7 @@ def ensure_table_exists():
         exists = cursor.fetchone()[0]
         
         if not exists:
-            print("📝 Creando tabla 'contactos'...")
+            logger.info("📝 Creando tabla 'contactos'...")
             cursor.execute("""
                 CREATE TABLE contactos (
                     id SERIAL PRIMARY KEY,
@@ -85,9 +92,9 @@ def ensure_table_exists():
                 )
             """)
             conn.commit()
-            print("✅ Tabla 'contactos' creada exitosamente")
+            logger.info("✅ Tabla 'contactos' creada exitosamente")
         else:
-            print("✅ Tabla 'contactos' ya existe")
+            logger.info("✅ Tabla 'contactos' ya existe")
         
         cursor.close()
         conn.close()
@@ -115,27 +122,30 @@ def serve_static(filename):
 
 @app.route('/health', methods=['GET'])
 def health_check():
-    """Estado del sistema"""
+    """Estado del sistema - Útil para monitoreo"""
     conn = get_db()
-    db_status = "connected" if conn else "disconnected"
+    db_status = "disconnected"
+    contact_count = 0
     
     if conn:
-        # Verificar tabla
         try:
             cursor = conn.cursor()
             cursor.execute("SELECT COUNT(*) FROM contactos")
-            count = cursor.fetchone()[0]
+            contact_count = cursor.fetchone()[0]
             cursor.close()
-            db_status = f"connected ({count} contactos)"
-        except:
-            db_status = "connected (tabla no verificada)"
-        conn.close()
+            db_status = "connected"
+        except Exception as e:
+            logger.error(f"Error en health check: {e}")
+            db_status = "error"
+        finally:
+            conn.close()
     
     return jsonify({
         'status': 'healthy',
         'database': db_status,
+        'contact_count': contact_count,
         'service': 'Dante Propiedades Admin',
-        'version': '3.0.0',
+        'version': '3.1.0',
         'timestamp': datetime.now().isoformat()
     })
 
@@ -146,13 +156,17 @@ def health_check():
 @app.route('/admin/data', methods=['GET'])
 def get_contacts():
     """Obtener todos los contactos"""
+    # Verificar token
     token = request.args.get('token', '')
     if token != ADMIN_TOKEN:
+        logger.warning(f"Intento de acceso con token inválido: {token}")
         return jsonify({'error': 'Token inválido'}), 401
+    
+    logger.info("GET /admin/data - Solicitando lista de contactos")
     
     conn = get_db()
     if not conn:
-        return jsonify({'error': 'Error de conexión a DB'}), 500
+        return jsonify({'error': 'Error de conexión a la base de datos'}), 500
     
     try:
         cursor = conn.cursor()
@@ -176,6 +190,8 @@ def get_contacts():
         cursor.close()
         conn.close()
         
+        logger.info(f"✅ Datos obtenidos: {len(contacts)} contactos")
+        
         return jsonify({
             'success': True,
             'data': contacts,
@@ -184,22 +200,32 @@ def get_contacts():
         })
         
     except Exception as e:
-        logger.error(f"Error /admin/data: {str(e)}")
-        return jsonify({'error': str(e)}), 500
+        logger.error(f"Error en /admin/data: {str(e)}")
+        return jsonify({'error': f'Error en la consulta: {str(e)}'}), 500
     finally:
         if conn:
             conn.close()
 
-@app.route('/admin/add', methods=['POST'])
+@app.route('/admin/add', methods=['POST', 'OPTIONS'])
 def add_contact():
     """Agregar nuevo contacto"""
+    # Manejar preflight CORS
+    if request.method == 'OPTIONS':
+        return '', 200
+    
+    # Verificar token
     token = request.args.get('token', '')
     if token != ADMIN_TOKEN:
+        logger.warning(f"Intento de agregar con token inválido: {token}")
         return jsonify({'error': 'Token inválido'}), 401
+    
+    logger.info("POST /admin/add - Intentando agregar contacto")
     
     try:
         data = request.get_json()
-    except:
+        logger.info(f"Datos recibidos: {data}")
+    except Exception as e:
+        logger.error(f"Error parsing JSON: {e}")
         return jsonify({'error': 'Datos JSON inválidos'}), 400
     
     if not data:
@@ -209,11 +235,11 @@ def add_contact():
     email = data.get('email', '').strip().lower()
     
     if not nombre or not email:
-        return jsonify({'error': 'Nombre y email requeridos'}), 400
+        return jsonify({'error': 'Nombre y email son requeridos'}), 400
     
     conn = get_db()
     if not conn:
-        return jsonify({'error': 'Error de conexión a DB'}), 500
+        return jsonify({'error': 'Error de conexión a la base de datos'}), 500
     
     try:
         cursor = conn.cursor()
@@ -228,7 +254,7 @@ def add_contact():
         cursor.close()
         conn.close()
         
-        logger.info(f"✅ Contacto agregado: ID {new_id} - {email}")
+        logger.info(f"✅ Contacto agregado exitosamente: ID {new_id} - {email}")
         
         return jsonify({
             'success': True,
@@ -237,17 +263,24 @@ def add_contact():
             'email': email
         })
         
-    except psycopg2.IntegrityError:
-        return jsonify({'error': 'El email ya existe'}), 400
+    except psycopg2.IntegrityError as e:
+        logger.error(f"Error de integridad: {e}")
+        return jsonify({'error': 'El email ya existe en la base de datos'}), 400
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        logger.error(f"Error inesperado: {e}")
+        return jsonify({'error': f'Error en el servidor: {str(e)}'}), 500
     finally:
         if conn:
             conn.close()
 
-@app.route('/admin/update', methods=['PUT'])
+# Los demás endpoints (/update, /delete, /clear) continúan igual...
+
+@app.route('/admin/update', methods=['PUT', 'OPTIONS'])
 def update_contact():
     """Actualizar contacto"""
+    if request.method == 'OPTIONS':
+        return '', 200
+    
     token = request.args.get('token', '')
     if token != ADMIN_TOKEN:
         return jsonify({'error': 'Token inválido'}), 401
@@ -298,9 +331,12 @@ def update_contact():
         if conn:
             conn.close()
 
-@app.route('/admin/delete', methods=['DELETE'])
+@app.route('/admin/delete', methods=['DELETE', 'OPTIONS'])
 def delete_contact():
     """Eliminar contacto"""
+    if request.method == 'OPTIONS':
+        return '', 200
+    
     token = request.args.get('token', '')
     if token != ADMIN_TOKEN:
         return jsonify({'error': 'Token inválido'}), 401
@@ -340,9 +376,12 @@ def delete_contact():
         if conn:
             conn.close()
 
-@app.route('/admin/clear', methods=['DELETE'])
+@app.route('/admin/clear', methods=['DELETE', 'OPTIONS'])
 def clear_all():
-    """Eliminar todos los contactos (ADMIN ONLY)"""
+    """Eliminar todos los contactos"""
+    if request.method == 'OPTIONS':
+        return '', 200
+    
     token = request.args.get('token', '')
     if token != ADMIN_TOKEN:
         return jsonify({'error': 'Token inválido'}), 401
@@ -378,11 +417,19 @@ def clear_all():
 
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
-    print(f"\n✅ Sistema conectado a TU base de datos activa")
+    print("\n" + "="*70)
+    print("✅ SISTEMA INICIADO CORRECTAMENTE")
+    print("="*70)
     print(f"🌐 URL: https://administrador-63nc.onrender.com/")
-    print(f"🔑 Contraseña admin: {ADMIN_TOKEN}")
-    print(f"🗄️  Base de datos: PostgreSQL activa")
-    print(f"📅 Hora: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
-    print("=" * 70)
+    print(f"🔑 Token: {ADMIN_TOKEN}")
+    print(f"📊 Base de datos: PostgreSQL")
+    print(f"📝 Endpoints activos:")
+    print(f"   - GET  /health")
+    print(f"   - GET  /admin/data")
+    print(f"   - POST /admin/add")
+    print(f"   - PUT  /admin/update")
+    print(f"   - DELETE /admin/delete")
+    print(f"   - DELETE /admin/clear")
+    print("="*70 + "\n")
     
     app.run(host='0.0.0.0', port=port, debug=False)
