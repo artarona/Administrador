@@ -2,8 +2,7 @@
 # -*- coding: utf-8 -*-
 
 """
-SISTEMA ADMINISTRATIVO DANTEPROPIEDADES - VERSIÓN FINAL
-Funcionando al 100% con PostgreSQL en Render
+SISTEMA ADMINISTRATIVO DANTEPROPIEDADES - USANDO BASE DE DATOS EXISTENTE
 """
 
 import os
@@ -17,38 +16,22 @@ import time
 import requests
 
 # ============================================================================
-# CONFIGURACIÓN INICIAL
+# CONFIGURACIÓN INICIAL - USANDO TU BASE DE DATOS ACTIVA
 # ============================================================================
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 ADMIN_TOKEN = os.environ.get('ADMIN_TOKEN', '2205')
-DATABASE_URL = os.environ.get('DATABASE_URL')
+
+# TU BASE DE DATOS ACTIVA (ya funcionando en otra app)
+DATABASE_URL = "postgresql://dantepropiedadesdb_user:wiBPwMvLzG01zHkHKyqEsTfHEhcZzfKi@dpg-d62aqenpm1nc73fqi3m0-a.oregon-postgres.render.com:5432/dantepropiedadesdb"
 
 print("=" * 70)
-print("🚀 SISTEMA DANTEPROPIEDADES - OPERATIVO AL 100%")
+print("🚀 SISTEMA DANTEPROPIEDADES - USANDO BASE EXISTENTE")
 print("=" * 70)
 print(f"Inicio: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
-
-# ============================================================================
-# FUNCIÓN PARA MANTENER BASE DE DATOS ACTIVA
-# ============================================================================
-
-def keep_database_alive():
-    """Pings periódicos para mantener la DB activa en plan Free"""
-    def ping():
-        while True:
-            try:
-                requests.get('https://administrador-63nc.onrender.com/health', timeout=5)
-                logger.info(f"✅ Keep-alive ping: {datetime.now().strftime('%H:%M:%S')}")
-            except:
-                logger.warning(f"⚠️ Keep-alive falló")
-            time.sleep(1800)  # Cada 30 minutos
-    
-    thread = threading.Thread(target=ping, daemon=True)
-    thread.start()
-    logger.info("🛡️ Keep-alive activado (pings cada 30 minutos)")
+print(f"📊 Base de datos: {DATABASE_URL.split('@')[1].split('/')[0]}")
 
 # ============================================================================
 # INICIALIZAR FLASK
@@ -62,11 +45,7 @@ CORS(app)
 # ============================================================================
 
 def get_db():
-    """Conectar a PostgreSQL con manejo de errores"""
-    if not DATABASE_URL:
-        logger.error("DATABASE_URL no configurada")
-        return None
-    
+    """Conectar a PostgreSQL"""
     try:
         conn = psycopg2.connect(DATABASE_URL, connect_timeout=10)
         return conn
@@ -82,25 +61,39 @@ def ensure_table_exists():
     
     try:
         cursor = conn.cursor()
+        
+        # Verificar si la tabla existe
         cursor.execute("""
-            CREATE TABLE IF NOT EXISTS contactos (
-                id SERIAL PRIMARY KEY,
-                nombre VARCHAR(150) NOT NULL,
-                email VARCHAR(150) NOT NULL UNIQUE,
-                telefono VARCHAR(30),
-                mensaje TEXT,
-                fecha_creacion TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                fecha_actualizacion TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            SELECT EXISTS (
+                SELECT FROM information_schema.tables 
+                WHERE table_name = 'contactos'
             )
         """)
-        conn.commit()
+        exists = cursor.fetchone()[0]
+        
+        if not exists:
+            print("📝 Creando tabla 'contactos'...")
+            cursor.execute("""
+                CREATE TABLE contactos (
+                    id SERIAL PRIMARY KEY,
+                    nombre VARCHAR(150) NOT NULL,
+                    email VARCHAR(150) NOT NULL UNIQUE,
+                    telefono VARCHAR(30),
+                    mensaje TEXT,
+                    fecha_creacion TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    fecha_actualizacion TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            """)
+            conn.commit()
+            print("✅ Tabla 'contactos' creada exitosamente")
+        else:
+            print("✅ Tabla 'contactos' ya existe")
+        
         cursor.close()
         conn.close()
-        
-        logger.info("✅ Tabla 'contactos' verificada/creada")
         return True
     except Exception as e:
-        logger.error(f"Error creando tabla: {str(e)}")
+        logger.error(f"Error creando/verificando tabla: {str(e)}")
         return False
 
 # Inicializar tabla al inicio
@@ -120,10 +113,6 @@ def serve_static(filename):
     """Archivos estáticos"""
     return send_from_directory('.', filename)
 
-# ============================================================================
-# ENDPOINTS DE API
-# ============================================================================
-
 @app.route('/health', methods=['GET'])
 def health_check():
     """Estado del sistema"""
@@ -131,6 +120,15 @@ def health_check():
     db_status = "connected" if conn else "disconnected"
     
     if conn:
+        # Verificar tabla
+        try:
+            cursor = conn.cursor()
+            cursor.execute("SELECT COUNT(*) FROM contactos")
+            count = cursor.fetchone()[0]
+            cursor.close()
+            db_status = f"connected ({count} contactos)"
+        except:
+            db_status = "connected (tabla no verificada)"
         conn.close()
     
     return jsonify({
@@ -140,6 +138,10 @@ def health_check():
         'version': '3.0.0',
         'timestamp': datetime.now().isoformat()
     })
+
+# ============================================================================
+# ENDPOINTS DE API
+# ============================================================================
 
 @app.route('/admin/data', methods=['GET'])
 def get_contacts():
@@ -154,8 +156,6 @@ def get_contacts():
     
     try:
         cursor = conn.cursor()
-        
-        # Obtener datos con orden descendente
         cursor.execute("""
             SELECT id, nombre, email, telefono, mensaje, fecha_creacion
             FROM contactos 
@@ -174,6 +174,7 @@ def get_contacts():
             })
         
         cursor.close()
+        conn.close()
         
         return jsonify({
             'success': True,
@@ -186,7 +187,8 @@ def get_contacts():
         logger.error(f"Error /admin/data: {str(e)}")
         return jsonify({'error': str(e)}), 500
     finally:
-        conn.close()
+        if conn:
+            conn.close()
 
 @app.route('/admin/add', methods=['POST'])
 def add_contact():
@@ -215,8 +217,6 @@ def add_contact():
     
     try:
         cursor = conn.cursor()
-        
-        # Insertar contacto
         cursor.execute("""
             INSERT INTO contactos (nombre, email, telefono, mensaje)
             VALUES (%s, %s, %s, %s)
@@ -226,6 +226,7 @@ def add_contact():
         new_id = cursor.fetchone()[0]
         conn.commit()
         cursor.close()
+        conn.close()
         
         logger.info(f"✅ Contacto agregado: ID {new_id} - {email}")
         
@@ -241,7 +242,8 @@ def add_contact():
     except Exception as e:
         return jsonify({'error': str(e)}), 500
     finally:
-        conn.close()
+        if conn:
+            conn.close()
 
 @app.route('/admin/update', methods=['PUT'])
 def update_contact():
@@ -283,6 +285,7 @@ def update_contact():
         
         conn.commit()
         cursor.close()
+        conn.close()
         
         return jsonify({
             'success': True,
@@ -292,7 +295,8 @@ def update_contact():
     except Exception as e:
         return jsonify({'error': str(e)}), 500
     finally:
-        conn.close()
+        if conn:
+            conn.close()
 
 @app.route('/admin/delete', methods=['DELETE'])
 def delete_contact():
@@ -323,6 +327,7 @@ def delete_contact():
         
         conn.commit()
         cursor.close()
+        conn.close()
         
         return jsonify({
             'success': True,
@@ -332,7 +337,8 @@ def delete_contact():
     except Exception as e:
         return jsonify({'error': str(e)}), 500
     finally:
-        conn.close()
+        if conn:
+            conn.close()
 
 @app.route('/admin/clear', methods=['DELETE'])
 def clear_all():
@@ -353,6 +359,7 @@ def clear_all():
         cursor.execute("DELETE FROM contactos")
         conn.commit()
         cursor.close()
+        conn.close()
         
         return jsonify({
             'success': True,
@@ -362,21 +369,19 @@ def clear_all():
     except Exception as e:
         return jsonify({'error': str(e)}), 500
     finally:
-        conn.close()
+        if conn:
+            conn.close()
 
 # ============================================================================
 # INICIAR APLICACIÓN
 # ============================================================================
 
 if __name__ == '__main__':
-    # Activar keep-alive para mantener DB activa
-    keep_database_alive()
-    
     port = int(os.environ.get('PORT', 5000))
-    print(f"\n✅ Sistema operativo al 100%")
+    print(f"\n✅ Sistema conectado a TU base de datos activa")
     print(f"🌐 URL: https://administrador-63nc.onrender.com/")
     print(f"🔑 Contraseña admin: {ADMIN_TOKEN}")
-    print(f"🗄️  Base de datos: PostgreSQL (Render)")
+    print(f"🗄️  Base de datos: PostgreSQL activa")
     print(f"📅 Hora: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
     print("=" * 70)
     
