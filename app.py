@@ -4,7 +4,7 @@
 """
 SISTEMA ADMINISTRATIVO DANTEPROPIEDADES - VERSIÓN MEJORADA CON DEBUG
 """
-
+import time
 import os
 import psycopg2
 from datetime import datetime
@@ -74,21 +74,28 @@ CORS(app)
 # FUNCIONES DE BASE DE DATOS
 # ============================================================================
 
-def get_db():
-    """Conectar a PostgreSQL forzando SSL explícitamente"""
-    try:
-        logger.info("Intentando conectar a PostgreSQL...")
-        # Usamos la URL pero forzamos sslmode como argumento adicional
-        conn = psycopg2.connect(
-            DATABASE_URL,
-            sslmode='require',      # <--- CLAVE: forzamos SSL
-            connect_timeout=10
-        )
-        logger.info("✅ Conexión a PostgreSQL exitosa")
-        return conn
-    except Exception as e:
-        logger.error(f"❌ Error PostgreSQL: {str(e)}")
-        return None
+import time
+
+def get_db(retries=3, delay=2):
+    for attempt in range(retries):
+        try:
+            logger.info(f"Intento {attempt+1} de conexión...")
+            conn = psycopg2.connect(
+                host='dpg-d5jcenh5pdvs738eqr4g-a.oregon-postgres.render.com',
+                port=5432,
+                user='dantepropiedades_user',
+                password='BHKRZmYiOFgF4vgoeRjAEKNJQwVFVoms',
+                dbname='dantepropiedades_db_e3ku',
+                sslmode='require',
+                connect_timeout=20
+            )
+            logger.info("✅ Conexión exitosa")
+            return conn
+        except Exception as e:
+            logger.error(f"Intento {attempt+1} fallido: {str(e)}")
+            if attempt < retries - 1:
+                time.sleep(delay)
+    return None
 
 def ensure_table_exists():
     """Asegurar que la tabla contactos existe"""
