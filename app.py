@@ -38,8 +38,9 @@ ADMIN_TOKEN = os.environ.get('ADMIN_TOKEN', '2205')
 
 # Primero intentar obtener la URL desde las variables de entorno
 DATABASE_URL = os.environ.get('DATABASE_URL')
+
+# Si no existe, usa la URL externa de Render (cámbiala por la tuya)
 if not DATABASE_URL:
-    logger.warning("⚠️ DATABASE_URL no encontrada en entorno. Usando fallback.")
     DATABASE_URL = "postgresql://dantepropiedades_user:BHKRZmYiOFgF4vgoeRjAEKNJQwVFVoms@dpg-d5jcenh5pdvs738eqr4g-a.oregon-postgres.render.com:5432/dantepropiedades_db_e3ku?sslmode=require"
 
 # Asegurar que la URL tenga el parámetro sslmode=require
@@ -74,17 +75,13 @@ CORS(app)
 # ============================================================================
 
 def get_db():
+    """Conectar a PostgreSQL forzando SSL explícitamente"""
     try:
         logger.info("Intentando conectar a PostgreSQL...")
-        
-        # Conexión por parámetros separados (forzando SSL)
+        # Usamos la URL pero forzamos sslmode como argumento adicional
         conn = psycopg2.connect(
-            host='dpg-d5jcenh5pdvs738eqr4g-a.oregon-postgres.render.com',
-            port=5432,
-            user='dantepropiedades_user',
-            password='BHKRZmYiOFgF4vgoeRjAEKNJQwVFVoms',
-            dbname='dantepropiedades_db_e3ku',
-            sslmode='require',  # Fuerza SSL
+            DATABASE_URL,
+            sslmode='require',      # <--- CLAVE: forzamos SSL
             connect_timeout=10
         )
         logger.info("✅ Conexión a PostgreSQL exitosa")
