@@ -74,14 +74,18 @@ CORS(app)
 # ============================================================================
 
 def get_db():
-    """Conectar a PostgreSQL con manejo de errores detallado y SSL forzado"""
+    """Conectar a PostgreSQL forzando SSL explícitamente"""
     try:
         logger.info("Intentando conectar a PostgreSQL...")
-        logger.info(f"URL de conexión: {DATABASE_URL}")  # Para depuración
+        logger.info(f"URL de conexión: {DATABASE_URL}")
 
-        # Forzamos sslmode='require' como argumento directo
-        conn = psycopg2.connect(DATABASE_URL, sslmode='require', connect_timeout=10)
-        
+        # Extraer parámetros de la URL (o usar valores directos)
+        # Pero lo más seguro es pasar sslmode como argumento
+        conn = psycopg2.connect(
+            DATABASE_URL,
+            sslmode='require',          # Fuerza SSL
+            connect_timeout=10
+        )
         logger.info("✅ Conexión a PostgreSQL exitosa")
         return conn
     except Exception as e:
