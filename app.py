@@ -32,22 +32,37 @@ ADMIN_TOKEN = os.environ.get('ADMIN_TOKEN', '2205')
 
 
 
-DATABASE_URL = os.environ.get('DATABASE_URL')
-if not DATABASE_URL:
-    logger.error("❌ Variable DATABASE_URL no definida en el entorno")
-    # Fallback solo para desarrollo local (NO USAR EN PRODUCCIÓN)
-    DATABASE_URL = "postgresql://dantepropiedades_user:BHKRZmYiOFgF4vgoeRjAEKNJQwVFVoms@dpg-d5jcenh5pdvs738eqr4g-a:5432/dantepropiedades_db_e3ku?sslmode=require"
+# ============================================================================
+# CONFIGURACIÓN DE BASE DE DATOS
+# ============================================================================
 
-# Asegurar que la URL tenga sslmode
+# Primero intentar obtener la URL desde las variables de entorno
+DATABASE_URL = os.environ.get('DATABASE_URL')
+
+# Si no está definida, usar el fallback (solo para desarrollo)
+if not DATABASE_URL:
+    logger.warning("⚠️ DATABASE_URL no encontrada en entorno. Usando fallback.")
+    DATABASE_URL = "postgresql://dantepropiedades_user:BHKRZmYiOFgF4vgoeRjAEKNJQwVFVoms@dpg-d5jcenh5pdvs738eqr4g-a.oregon-postgres.render.com:5432/dantepropiedades_db_e3ku?sslmode=require"
+
+# Asegurar que la URL tenga el parámetro sslmode=require
 if 'sslmode' not in DATABASE_URL:
     DATABASE_URL += '?sslmode=require'
-    logger.info("🔒 Se agregó sslmode=require a la URL de conexión")
+    logger.info("🔒 Se agregó '?sslmode=require' a la URL de conexión")
+
+# ============================================================================
+# INICIO DEL SISTEMA
+# ============================================================================
 
 print("=" * 70)
 print("🚀 SISTEMA DANTEPROPIEDADES - VERSIÓN MEJORADA")
 print("=" * 70)
 print(f"Inicio: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
-print(f"📊 Base de datos: {DATABASE_URL.split('@')[1].split('/')[0]}")
+# Extraer el host de la URL para mostrarlo (manejar posible ausencia de '@')
+try:
+    host_part = DATABASE_URL.split('@')[1].split('/')[0]
+except IndexError:
+    host_part = "desconocido"
+print(f"📊 Base de datos: {host_part}")
 print("=" * 70)
 
 # ============================================================================
@@ -55,8 +70,7 @@ print("=" * 70)
 # ============================================================================
 
 app = Flask(__name__)
-CORS(app)  # Permitir peticiones desde cualquier origen
-
+CORS(app)
 # ============================================================================
 # FUNCIONES DE BASE DE DATOS
 # ============================================================================
