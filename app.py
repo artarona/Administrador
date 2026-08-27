@@ -28,7 +28,20 @@ logger = logging.getLogger(__name__)
 ADMIN_TOKEN = os.environ.get('ADMIN_TOKEN', '2205')
 
 # TU BASE DE DATOS ACTIVA
-DATABASE_URL = "postgresql://dantepropiedadesdb_user:wiBPwMvLzG01zHkHKyqEsTfHEhcZzfKi@dpg-d62aqenpm1nc73fqi3m0-a.oregon-postgres.render.com:5432/dantepropiedadesdb"
+
+
+
+
+DATABASE_URL = os.environ.get('DATABASE_URL')
+if not DATABASE_URL:
+    logger.error("❌ Variable DATABASE_URL no definida en el entorno")
+    # Fallback solo para desarrollo local (NO USAR EN PRODUCCIÓN)
+    DATABASE_URL = "postgresql://dantepropiedades_user:BHKRZmYiOFgF4vgoeRjAEKNJQwVFVoms@dpg-d5jcenh5pdvs738eqr4g-a:5432/dantepropiedades_db_e3ku?sslmode=require"
+
+# Asegurar que la URL tenga sslmode
+if 'sslmode' not in DATABASE_URL:
+    DATABASE_URL += '?sslmode=require'
+    logger.info("🔒 Se agregó sslmode=require a la URL de conexión")
 
 print("=" * 70)
 print("🚀 SISTEMA DANTEPROPIEDADES - VERSIÓN MEJORADA")
