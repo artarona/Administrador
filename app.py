@@ -37,7 +37,6 @@ if not DATABASE_URL:
     DATABASE_URL = "postgresql://dantepropiedades_db_ucly_user:lXJBs0o3hGelsXG3y9EKA2giwZyBdcUZ@dpg-da8e1gon74is73dm4d90-a.oregon-postgres.render.com:5432/dantepropiedades_db_ucly?sslmode=require"
 
 
-
 if 'sslmode' not in DATABASE_URL:
     DATABASE_URL += '?sslmode=disable'
     logger.info("🔒 Se agregó '?sslmode=disable' a la URL de conexión")
