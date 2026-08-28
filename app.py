@@ -27,14 +27,6 @@ logger = logging.getLogger(__name__)
 
 ADMIN_TOKEN = os.environ.get('ADMIN_TOKEN', '2205')
 
-# ============================================================================
-# CONFIGURACIÓN DE BASE DE DATOS
-# ============================================================================
-
-# Primero intentar obtener la URL desde las variables de entorno
-# ============================================================================
-# CONFIGURACIÓN DE BASE DE DATOS
-# ============================================================================
 
 # Usar variable de entorno (prioridad)
 # ============================================================================
@@ -76,9 +68,8 @@ CORS(app)
 # ============================================================================
 
 def get_db():
-    """Conectar a PostgreSQL forzando SSL desactivado (conexión interna)"""
     try:
-        logger.info("Intentando conectar a PostgreSQL (sin SSL)...")
+        logger.info("Intentando conectar a PostgreSQL...")
         conn = psycopg2.connect(DATABASE_URL, connect_timeout=10)
         logger.info("✅ Conexión a PostgreSQL exitosa")
         return conn
