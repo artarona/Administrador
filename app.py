@@ -38,7 +38,7 @@ DATABASE_URL = os.environ.get('DATABASE_URL')
 
 # Si no existe, usa la URL que funciona (la nueva)
 if not DATABASE_URL:
-    DATABASE_URL = "postgresql://dantepropiedades_user:BHKRZmYiOFgF4vgoeRjAEKNJQwVFVoms@dpg-d5jcenh5pdvs738eqr4g-a.oregon-postgres.render.com:5432/dantepropiedades_db_e3ku?sslmode=require"
+    DATABASE_URL = "postgresql://dantepropiedades_db_ucly_user:lXJBs0o3hGelsXG3y9EKA2giwZyBdcUZ@dpg-da8e1gon74is73dm4d90-a.oregon-postgres.render.com:5432/dantepropiedades_db_ucly?sslmode=require"
 
 # ELIMINA CUALQUIER LÍNEA QUE AGREGE ?sslmode=disable o ?sslmode=allow
 # No debe haber nada como: if 'sslmode' not in DATABASE_URL: DATABASE_URL += '?sslmode=disable'
