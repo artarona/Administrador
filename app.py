@@ -39,14 +39,14 @@ ADMIN_TOKEN = os.environ.get('ADMIN_TOKEN', '2205')
 # Primero intentar obtener la URL desde las variables de entorno
 DATABASE_URL = os.environ.get('DATABASE_URL')
 
-# Si no existe, usa la URL externa de Render (cámbiala por la tuya)
+# Si no existe, usa la URL INTERNA (sin sslmode)
 if not DATABASE_URL:
-    DATABASE_URL = "postgresql://dantepropiedades_user:BHKRZmYiOFgF4vgoeRjAEKNJQwVFVoms@dpg-d5jcenh5pdvs738eqr4g-a.oregon-postgres.render.com:5432/dantepropiedades_db_e3ku?sslmode=require"
+    DATABASE_URL = "postgresql://dantepropiedades_user:BHKRZmYiOFgF4vgoeRjAEKNJQwVFVoms@dpg-d5jcenh5pdvs738eqr4g-a:5432/dantepropiedades_db_e3ku"
 
-# Asegurar que la URL tenga el parámetro sslmode=require
+# Forzamos sslmode=disable para evitar problemas SSL
 if 'sslmode' not in DATABASE_URL:
-    DATABASE_URL += '?sslmode=require'
-    logger.info("🔒 Se agregó '?sslmode=require' a la URL de conexión")
+    DATABASE_URL += '?sslmode=disable'
+    logger.info("🔒 Se agregó '?sslmode=disable' a la URL de conexión (conexión interna)")
 
 # ============================================================================
 # INICIO DEL SISTEMA
@@ -74,28 +74,17 @@ CORS(app)
 # FUNCIONES DE BASE DE DATOS
 # ============================================================================
 
-import time
 
-def get_db(retries=3, delay=2):
-    for attempt in range(retries):
-        try:
-            logger.info(f"Intento {attempt+1} de conexión...")
-            conn = psycopg2.connect(
-                host='dpg-d5jcenh5pdvs738eqr4g-a.oregon-postgres.render.com',
-                port=5432,
-                user='dantepropiedades_user',
-                password='BHKRZmYiOFgF4vgoeRjAEKNJQwVFVoms',
-                dbname='dantepropiedades_db_e3ku',
-                sslmode='require',
-                connect_timeout=20
-            )
-            logger.info("✅ Conexión exitosa")
-            return conn
-        except Exception as e:
-            logger.error(f"Intento {attempt+1} fallido: {str(e)}")
-            if attempt < retries - 1:
-                time.sleep(delay)
-    return None
+
+def get_db():
+    try:
+        logger.info("Intentando conectar a PostgreSQL (sin SSL)...")
+        conn = psycopg2.connect(DATABASE_URL, connect_timeout=10)
+        logger.info("✅ Conexión a PostgreSQL exitosa")
+        return conn
+    except Exception as e:
+        logger.error(f"❌ Error PostgreSQL: {str(e)}")
+        return None
 
 def ensure_table_exists():
     """Asegurar que la tabla contactos existe"""
