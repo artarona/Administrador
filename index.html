@@ -835,9 +835,10 @@
             if (e.key === 'Enter') verificarLogin();
         });
 
-        // 🔄 AUTO-REFRESH cada 60 segundos
+        // 🔄 AUTO-REFRESH cada 60 segundos (cuando el panel está visible)
         setInterval(() => {
-            if (!document.getElementById('login-screen').classList.contains('hidden')) {
+            // Solo recargar si el panel administrativo está visible (login oculto)
+            if (document.getElementById('login-screen').classList.contains('hidden')) {
                 cargarDatos();
             }
         }, 60000);

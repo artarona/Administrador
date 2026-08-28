@@ -12,7 +12,7 @@ from flask import Flask, request, jsonify, send_from_directory
 from flask_cors import CORS
 import logging
 import sys
-import time  # Para generar timestamps únicos
+import time
 
 # ============================================================================
 # CONFIGURACIÓN INICIAL
@@ -33,12 +33,9 @@ ADMIN_TOKEN = os.environ.get('ADMIN_TOKEN', '2205')
 
 # Primero intentar obtener la URL desde las variables de entorno
 DATABASE_URL = os.environ.get('DATABASE_URL')
-
-# Si no existe, usar la URL interna (con sslmode=disable)
 if not DATABASE_URL:
     DATABASE_URL = "postgresql://dantepropiedades_db_ucly_user:lXJBs0o3hGelsXG3y9EKA2giwZyBdcUZ@dpg-da8e1gon74is73dm4d90-a:5432/dantepropiedades_db_ucly?sslmode=disable"
 
-# Asegurar que la URL tenga sslmode=disable
 if 'sslmode' not in DATABASE_URL:
     DATABASE_URL += '?sslmode=disable'
     logger.info("🔒 Se agregó '?sslmode=disable' a la URL de conexión")
@@ -190,11 +187,10 @@ def get_contacts():
     try:
         cursor = conn.cursor()
         cursor.execute("""
-            SELECT timestamp, nombre, email, telefono, notas, fecha_creacion
+            SELECT timestamp, nombre, email, telefono, notas as mensaje, fecha_creacion
             FROM contactos 
             ORDER BY fecha_creacion DESC
         """)
-        
         contacts = []
         for row in cursor.fetchall():
             contacts.append({
@@ -260,9 +256,7 @@ def add_contact():
         return jsonify({'error': 'Error de conexión a la base de datos'}), 500
     
     try:
-        # Generar timestamp único (milisegundos)
         timestamp = str(int(time.time() * 1000))
-        
         cursor = conn.cursor()
         cursor.execute("""
             INSERT INTO contactos (timestamp, nombre, email, telefono, notas, estado)
