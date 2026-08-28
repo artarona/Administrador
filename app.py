@@ -4,7 +4,7 @@
 """
 SISTEMA ADMINISTRATIVO DANTEPROPIEDADES - VERSIÓN MEJORADA CON DEBUG
 """
-import time
+
 import os
 import psycopg2
 from datetime import datetime
@@ -12,12 +12,12 @@ from flask import Flask, request, jsonify, send_from_directory
 from flask_cors import CORS
 import logging
 import sys
+import time  # Para generar timestamps únicos
 
 # ============================================================================
 # CONFIGURACIÓN INICIAL
 # ============================================================================
 
-# Configurar logging para que se vea en Render
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
@@ -27,11 +27,6 @@ logger = logging.getLogger(__name__)
 
 ADMIN_TOKEN = os.environ.get('ADMIN_TOKEN', '2205')
 
-# TU BASE DE DATOS ACTIVA
-
-
-
-
 # ============================================================================
 # CONFIGURACIÓN DE BASE DE DATOS
 # ============================================================================
@@ -39,24 +34,15 @@ ADMIN_TOKEN = os.environ.get('ADMIN_TOKEN', '2205')
 # Primero intentar obtener la URL desde las variables de entorno
 DATABASE_URL = os.environ.get('DATABASE_URL')
 
-# Si no existe, usa la URL INTERNA (sin sslmode)
-import os
-import psycopg2
-
-# Intenta obtener la URL de las variables de entorno
-DATABASE_URL = os.environ.get('DATABASE_URL')
-
-# Si no existe, usa la URL INTERNA (sin dominio) y fuerza sslmode=disable
+# Si no existe, usar la URL interna (con sslmode=disable)
 if not DATABASE_URL:
-    DATABASE_URL = "postgresql://dantepropiedades_user:BHKRZmYiOFgF4vgoeRjAEKNJQwVFVoms@dpg-d5jcenh5pdvs738eqr4g-a:5432/dantepropiedades_db_e3ku?sslmode=disable"
+    DATABASE_URL = "postgresql://dantepropiedades_db_ucly_user:lXJBs0o3hGelsXG3y9EKA2giwZyBdcUZ@dpg-da8e1gon74is73dm4d90-a:5432/dantepropiedades_db_ucly?sslmode=disable"
 
-def get_db():
-    try:
-        conn = psycopg2.connect(DATABASE_URL, connect_timeout=10)
-        return conn
-    except Exception as e:
-        print(f"Error: {e}")
-        return None
+# Asegurar que la URL tenga sslmode=disable
+if 'sslmode' not in DATABASE_URL:
+    DATABASE_URL += '?sslmode=disable'
+    logger.info("🔒 Se agregó '?sslmode=disable' a la URL de conexión")
+
 # ============================================================================
 # INICIO DEL SISTEMA
 # ============================================================================
@@ -65,7 +51,6 @@ print("=" * 70)
 print("🚀 SISTEMA DANTEPROPIEDADES - VERSIÓN MEJORADA")
 print("=" * 70)
 print(f"Inicio: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
-# Extraer el host de la URL para mostrarlo (manejar posible ausencia de '@')
 try:
     host_part = DATABASE_URL.split('@')[1].split('/')[0]
 except IndexError:
@@ -79,12 +64,24 @@ print("=" * 70)
 
 app = Flask(__name__)
 CORS(app)
+
 # ============================================================================
 # FUNCIONES DE BASE DE DATOS
 # ============================================================================
 
+def get_db():
+    """Conectar a PostgreSQL forzando SSL desactivado (conexión interna)"""
+    try:
+        logger.info("Intentando conectar a PostgreSQL (sin SSL)...")
+        conn = psycopg2.connect(DATABASE_URL, connect_timeout=10)
+        logger.info("✅ Conexión a PostgreSQL exitosa")
+        return conn
+    except Exception as e:
+        logger.error(f"❌ Error PostgreSQL: {str(e)}")
+        return None
+
 def ensure_table_exists():
-    """Asegurar que la tabla contactos existe"""
+    """Asegurar que la tabla contactos existe (con el esquema correcto)"""
     conn = get_db()
     if not conn:
         logger.error("No se pudo conectar para verificar tabla")
@@ -106,11 +103,14 @@ def ensure_table_exists():
             logger.info("📝 Creando tabla 'contactos'...")
             cursor.execute("""
                 CREATE TABLE contactos (
-                    id SERIAL PRIMARY KEY,
-                    nombre VARCHAR(150) NOT NULL,
-                    email VARCHAR(150) NOT NULL UNIQUE,
-                    telefono VARCHAR(30),
-                    mensaje TEXT,
+                    timestamp VARCHAR(255) PRIMARY KEY,
+                    nombre VARCHAR(255) NOT NULL,
+                    email VARCHAR(255),
+                    telefono VARCHAR(255),
+                    estado VARCHAR(100) DEFAULT 'nuevo',
+                    notas TEXT,
+                    ip_address VARCHAR(45),
+                    user_agent TEXT,
                     fecha_creacion TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                     fecha_actualizacion TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 )
@@ -136,17 +136,14 @@ ensure_table_exists()
 
 @app.route('/')
 def index():
-    """Servir frontend"""
     return send_from_directory('.', 'index.html')
 
 @app.route('/<path:filename>')
 def serve_static(filename):
-    """Archivos estáticos"""
     return send_from_directory('.', filename)
 
 @app.route('/health', methods=['GET'])
 def health_check():
-    """Estado del sistema - Útil para monitoreo"""
     conn = get_db()
     db_status = "disconnected"
     contact_count = 0
@@ -169,18 +166,16 @@ def health_check():
         'database': db_status,
         'contact_count': contact_count,
         'service': 'Dante Propiedades Admin',
-        'version': '3.1.0',
+        'version': '3.2.0',
         'timestamp': datetime.now().isoformat()
     })
 
 # ============================================================================
-# ENDPOINTS DE API
+# ENDPOINTS DE API (adaptados al esquema real)
 # ============================================================================
 
 @app.route('/admin/data', methods=['GET'])
 def get_contacts():
-    """Obtener todos los contactos"""
-    # Verificar token
     token = request.args.get('token', '')
     if token != ADMIN_TOKEN:
         logger.warning(f"Intento de acceso con token inválido: {token}")
@@ -195,7 +190,7 @@ def get_contacts():
     try:
         cursor = conn.cursor()
         cursor.execute("""
-            SELECT id, nombre, email, telefono, mensaje, fecha_creacion
+            SELECT timestamp, nombre, email, telefono, notas, fecha_creacion
             FROM contactos 
             ORDER BY fecha_creacion DESC
         """)
@@ -203,11 +198,11 @@ def get_contacts():
         contacts = []
         for row in cursor.fetchall():
             contacts.append({
-                'id': row[0],
+                'id': row[0],            # timestamp
                 'nombre': row[1] or '',
                 'email': row[2] or '',
                 'telefono': row[3] or '',
-                'mensaje': row[4] or '',
+                'mensaje': row[4] or '',  # notas
                 'fecha_creacion': row[5].isoformat() if row[5] else ''
             })
         
@@ -232,12 +227,9 @@ def get_contacts():
 
 @app.route('/admin/add', methods=['POST', 'OPTIONS'])
 def add_contact():
-    """Agregar nuevo contacto"""
-    # Manejar preflight CORS
     if request.method == 'OPTIONS':
         return '', 200
     
-    # Verificar token
     token = request.args.get('token', '')
     if token != ADMIN_TOKEN:
         logger.warning(f"Intento de agregar con token inválido: {token}")
@@ -257,6 +249,8 @@ def add_contact():
     
     nombre = data.get('nombre', '').strip()
     email = data.get('email', '').strip().lower()
+    telefono = data.get('telefono', '').strip()
+    mensaje = data.get('mensaje', '').strip()
     
     if not nombre or not email:
         return jsonify({'error': 'Nombre y email son requeridos'}), 400
@@ -266,30 +260,31 @@ def add_contact():
         return jsonify({'error': 'Error de conexión a la base de datos'}), 500
     
     try:
+        # Generar timestamp único (milisegundos)
+        timestamp = str(int(time.time() * 1000))
+        
         cursor = conn.cursor()
         cursor.execute("""
-            INSERT INTO contactos (nombre, email, telefono, mensaje)
-            VALUES (%s, %s, %s, %s)
-            RETURNING id
-        """, (nombre, email, data.get('telefono', ''), data.get('mensaje', '')))
+            INSERT INTO contactos (timestamp, nombre, email, telefono, notas, estado)
+            VALUES (%s, %s, %s, %s, %s, 'nuevo')
+        """, (timestamp, nombre, email, telefono, mensaje))
         
-        new_id = cursor.fetchone()[0]
         conn.commit()
         cursor.close()
         conn.close()
         
-        logger.info(f"✅ Contacto agregado exitosamente: ID {new_id} - {email}")
+        logger.info(f"✅ Contacto agregado exitosamente: {timestamp} - {email}")
         
         return jsonify({
             'success': True,
             'message': 'Contacto agregado exitosamente',
-            'id': new_id,
+            'id': timestamp,
             'email': email
         })
         
     except psycopg2.IntegrityError as e:
         logger.error(f"Error de integridad: {e}")
-        return jsonify({'error': 'El email ya existe en la base de datos'}), 400
+        return jsonify({'error': 'El timestamp ya existe (contacto duplicado)'}), 400
     except Exception as e:
         logger.error(f"Error inesperado: {e}")
         return jsonify({'error': f'Error en el servidor: {str(e)}'}), 500
@@ -297,11 +292,8 @@ def add_contact():
         if conn:
             conn.close()
 
-# Los demás endpoints (/update, /delete, /clear) continúan igual...
-
 @app.route('/admin/update', methods=['PUT', 'OPTIONS'])
 def update_contact():
-    """Actualizar contacto"""
     if request.method == 'OPTIONS':
         return '', 200
     
@@ -314,9 +306,17 @@ def update_contact():
     except:
         return jsonify({'error': 'Datos inválidos'}), 400
     
+    contacto_id = data.get('id', '').strip()
+    if not contacto_id:
+        return jsonify({'error': 'ID de contacto requerido'}), 400
+    
+    nombre = data.get('nombre', '').strip()
     email = data.get('email', '').strip().lower()
-    if not email:
-        return jsonify({'error': 'Email requerido'}), 400
+    telefono = data.get('telefono', '').strip()
+    mensaje = data.get('mensaje', '').strip()
+    
+    if not nombre or not email:
+        return jsonify({'error': 'Nombre y email son requeridos'}), 400
     
     conn = get_db()
     if not conn:
@@ -326,16 +326,11 @@ def update_contact():
         cursor = conn.cursor()
         cursor.execute("""
             UPDATE contactos 
-            SET nombre = %s, telefono = %s, mensaje = %s, 
+            SET nombre = %s, email = %s, telefono = %s, notas = %s,
                 fecha_actualizacion = CURRENT_TIMESTAMP
-            WHERE email = %s
-            RETURNING id
-        """, (
-            data.get('nombre', ''),
-            data.get('telefono', ''),
-            data.get('mensaje', ''),
-            email
-        ))
+            WHERE timestamp = %s
+            RETURNING timestamp
+        """, (nombre, email, telefono, mensaje, contacto_id))
         
         if cursor.rowcount == 0:
             return jsonify({'error': 'Contacto no encontrado'}), 404
@@ -357,7 +352,6 @@ def update_contact():
 
 @app.route('/admin/delete', methods=['DELETE', 'OPTIONS'])
 def delete_contact():
-    """Eliminar contacto"""
     if request.method == 'OPTIONS':
         return '', 200
     
@@ -370,9 +364,9 @@ def delete_contact():
     except:
         return jsonify({'error': 'Datos inválidos'}), 400
     
-    email = data.get('email', '').strip().lower()
-    if not email:
-        return jsonify({'error': 'Email requerido'}), 400
+    contacto_id = data.get('id', '').strip()
+    if not contacto_id:
+        return jsonify({'error': 'ID de contacto requerido'}), 400
     
     conn = get_db()
     if not conn:
@@ -380,7 +374,7 @@ def delete_contact():
     
     try:
         cursor = conn.cursor()
-        cursor.execute("DELETE FROM contactos WHERE email = %s RETURNING id", (email,))
+        cursor.execute("DELETE FROM contactos WHERE timestamp = %s RETURNING timestamp", (contacto_id,))
         
         if cursor.rowcount == 0:
             return jsonify({'error': 'Contacto no encontrado'}), 404
@@ -402,7 +396,6 @@ def delete_contact():
 
 @app.route('/admin/clear', methods=['DELETE', 'OPTIONS'])
 def clear_all():
-    """Eliminar todos los contactos"""
     if request.method == 'OPTIONS':
         return '', 200
     

@@ -609,29 +609,18 @@
             }
         }
 
+        // ============================================================================
+        // FUNCIONES DEL FRONTEND (adaptadas para usar id)
+        // ============================================================================
+
         function mostrarContactos() {
             const container = document.getElementById('contactos-list');
-
             if (contactos.length === 0) {
                 container.innerHTML = '<p><i class="fas fa-inbox"></i> No hay contactos registrados</p>';
                 return;
             }
-
             let html = '';
             contactos.forEach(contacto => {
-                // Intentar parsear metadata si existe
-                let metadataInfo = '';
-                try {
-                    if (contacto.metadata) {
-                        const metadata = JSON.parse(contacto.metadata);
-                        if (metadata.interes || metadata.presupuesto) {
-                            metadataInfo = `<small><i class="fas fa-info-circle"></i> Interés: ${metadata.interes || 'N/A'} | Presupuesto: ${metadata.presupuesto || 'N/A'}</small>`;
-                        }
-                    }
-                } catch (e) {
-                    // Ignorar error de parseo
-                }
-
                 html += `
                     <div class="contacto-item">
                         <div class="contacto-info">
@@ -639,15 +628,14 @@
                             <span><i class="fas fa-envelope"></i> ${contacto.email}</span>
                             <span><i class="fas fa-phone"></i> ${contacto.telefono || 'No especificado'}</span>
                             <span><i class="fas fa-comment"></i> ${contacto.mensaje || 'Sin mensaje'}</span>
-                            ${metadataInfo}
                             <small><i class="fas fa-calendar"></i> ${new Date(contacto.fecha_creacion).toLocaleString()}</small>
                         </div>
                         <div class="contacto-actions">
                             <div class="contacto-actions-row">
-                                <button class="btn btn-primary" onclick="editarContacto('${contacto.email}')">
+                                <button class="btn btn-primary" onclick="editarContacto('${contacto.id}')">
                                     <i class="fas fa-edit"></i> Editar
                                 </button>
-                                <button class="btn btn-danger" onclick="eliminarContacto('${contacto.email}')">
+                                <button class="btn btn-danger" onclick="eliminarContacto('${contacto.id}')">
                                     <i class="fas fa-trash"></i> Eliminar
                                 </button>
                             </div>
@@ -655,8 +643,45 @@
                     </div>
                 `;
             });
-
             container.innerHTML = html;
+        }
+
+        function editarContacto(id) {
+            const contacto = contactos.find(c => c.id === id);
+            if (!contacto) return;
+            contactoEditando = id;
+            document.getElementById('edit-nombre').value = contacto.nombre;
+            document.getElementById('edit-email').value = contacto.email;
+            document.getElementById('edit-telefono').value = contacto.telefono || '';
+            document.getElementById('edit-mensaje').value = contacto.mensaje || '';
+            document.getElementById('edit-modal').classList.remove('hidden');
+        }
+
+        async function actualizarContacto(event) {
+            event.preventDefault();
+            const id = contactoEditando;
+            const nombre = document.getElementById('edit-nombre').value;
+            const email = document.getElementById('edit-email').value;
+            const telefono = document.getElementById('edit-telefono').value;
+            const mensaje = document.getElementById('edit-mensaje').value;
+
+            try {
+                await apiRequest('update', 'PUT', { id, nombre, email, telefono, mensaje });
+                cerrarModal();
+                cargarDatos();
+            } catch (error) {
+                alert(`Error actualizando contacto: ${error.message}`);
+            }
+        }
+
+        async function eliminarContacto(id) {
+            if (!confirm('¿Está seguro de eliminar este contacto?')) return;
+            try {
+                await apiRequest('delete', 'DELETE', { id });
+                cargarDatos();
+            } catch (error) {
+                alert(`Error eliminando contacto: ${error.message}`);
+            }
         }
 
         async function agregarContacto(event) {
@@ -686,56 +711,8 @@
             }
         }
 
-        function editarContacto(email) {
-            const contacto = contactos.find(c => c.email === email);
-            if (!contacto) return;
 
-            contactoEditando = email;
-
-            document.getElementById('edit-nombre').value = contacto.nombre;
-            document.getElementById('edit-email').value = contacto.email;
-            document.getElementById('edit-telefono').value = contacto.telefono || '';
-            document.getElementById('edit-mensaje').value = contacto.mensaje || '';
-
-            document.getElementById('edit-modal').classList.remove('hidden');
-        }
-
-        async function actualizarContacto(event) {
-            event.preventDefault();
-
-            const nombre = document.getElementById('edit-nombre').value;
-            const email = document.getElementById('edit-email').value;
-            const telefono = document.getElementById('edit-telefono').value;
-            const mensaje = document.getElementById('edit-mensaje').value;
-
-            try {
-                await apiRequest('update', 'PUT', {
-                    nombre: nombre,
-                    email: email,
-                    telefono: telefono,
-                    mensaje: mensaje
-                });
-
-                cerrarModal();
-                cargarDatos();
-
-            } catch (error) {
-                alert(`Error actualizando contacto: ${error.message}`);
-            }
-        }
-
-        async function eliminarContacto(email) {
-            if (!confirm('¿Está seguro de eliminar este contacto?')) return;
-
-            try {
-                await apiRequest('delete', 'DELETE', { email: email });
-                cargarDatos();
-
-            } catch (error) {
-                alert(`Error eliminando contacto: ${error.message}`);
-            }
-        }
-
+        
         // 🔄 FUNCIÓN PARA IMPORTAR DATOS DE LOCALSTORAGE
         async function importarLocalStorage() {
             try {
