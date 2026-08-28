@@ -38,7 +38,6 @@ if not DATABASE_URL:
 
 
 
-
 if 'sslmode' not in DATABASE_URL:
     DATABASE_URL += '?sslmode=disable'
     logger.info("🔒 Se agregó '?sslmode=disable' a la URL de conexión")
