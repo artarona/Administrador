@@ -40,14 +40,23 @@ ADMIN_TOKEN = os.environ.get('ADMIN_TOKEN', '2205')
 DATABASE_URL = os.environ.get('DATABASE_URL')
 
 # Si no existe, usa la URL INTERNA (sin sslmode)
+import os
+import psycopg2
+
+# Intenta obtener la URL de las variables de entorno
+DATABASE_URL = os.environ.get('DATABASE_URL')
+
+# Si no existe, usa la URL INTERNA (sin dominio) y fuerza sslmode=disable
 if not DATABASE_URL:
-    DATABASE_URL = "postgresql://dantepropiedades_user:BHKRZmYiOFgF4vgoeRjAEKNJQwVFVoms@dpg-d5jcenh5pdvs738eqr4g-a:5432/dantepropiedades_db_e3ku"
+    DATABASE_URL = "postgresql://dantepropiedades_user:BHKRZmYiOFgF4vgoeRjAEKNJQwVFVoms@dpg-d5jcenh5pdvs738eqr4g-a:5432/dantepropiedades_db_e3ku?sslmode=disable"
 
-# Forzamos sslmode=disable para evitar problemas SSL
-if 'sslmode' not in DATABASE_URL:
-    DATABASE_URL += '?sslmode=disable'
-    logger.info("🔒 Se agregó '?sslmode=disable' a la URL de conexión (conexión interna)")
-
+def get_db():
+    try:
+        conn = psycopg2.connect(DATABASE_URL, connect_timeout=10)
+        return conn
+    except Exception as e:
+        print(f"Error: {e}")
+        return None
 # ============================================================================
 # INICIO DEL SISTEMA
 # ============================================================================
@@ -73,18 +82,6 @@ CORS(app)
 # ============================================================================
 # FUNCIONES DE BASE DE DATOS
 # ============================================================================
-
-
-
-def get_db():
-    try:
-        logger.info("Intentando conectar a PostgreSQL (sin SSL)...")
-        conn = psycopg2.connect(DATABASE_URL, connect_timeout=10)
-        logger.info("✅ Conexión a PostgreSQL exitosa")
-        return conn
-    except Exception as e:
-        logger.error(f"❌ Error PostgreSQL: {str(e)}")
-        return None
 
 def ensure_table_exists():
     """Asegurar que la tabla contactos existe"""
