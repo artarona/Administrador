@@ -28,18 +28,15 @@ logger = logging.getLogger(__name__)
 ADMIN_TOKEN = os.environ.get('ADMIN_TOKEN', '2205')
 
 
-# Usar variable de entorno (prioridad)
 # ============================================================================
 # CONFIGURACIÓN DE BASE DE DATOS
 # ============================================================================
 
-# Primero intentar obtener la URL desde las variables de entorno
-DATABASE_URL = "postgresql://dantepropiedadesdb_po9g_user:tCLVu87qxOjd2ZlRz5D9l5DPmQ73jsw1@dpg-da8e1gon74is73dm4d90-a.oregon-postgres.render.com:5432/dantepropiedades_db_ucly"
 DATABASE_URL = os.environ.get('DATABASE_URL')
 if not DATABASE_URL:
-    print("❌ Error: DATABASE_URL no configurado")
-    sys.exit(1)
-
+    logger.error("❌ DATABASE_URL no está configurada en variables de entorno")
+    # En lugar de usar un fallback, lanzamos un error para que sea evidente
+    raise RuntimeError("DATABASE_URL environment variable is required")
 
 # ELIMINA CUALQUIER LÍNEA QUE AGREGE ?sslmode=disable o ?sslmode=allow
 # No debe haber nada como: if 'sslmode' not in DATABASE_URL: DATABASE_URL += '?sslmode=disable'
