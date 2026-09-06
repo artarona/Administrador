@@ -34,7 +34,7 @@ ADMIN_TOKEN = os.environ.get('ADMIN_TOKEN', '2205')
 # ============================================================================
 
 # Primero intentar obtener la URL desde las variables de entorno
-
+DATABASE_URL = "postgresql://dantepropiedadesdb_po9g_user:tCLVu87qxOjd2ZlRz5D9l5DPmQ73jsw1@dpg-da8e1gon74is73dm4d90-a.oregon-postgres.render.com:5432/dantepropiedades_db_ucly"
 DATABASE_URL = os.environ.get('DATABASE_URL')
 if not DATABASE_URL:
     print("❌ Error: DATABASE_URL no configurado")
