@@ -34,11 +34,12 @@ ADMIN_TOKEN = os.environ.get('ADMIN_TOKEN', '2205')
 # ============================================================================
 
 # Primero intentar obtener la URL desde las variables de entorno
-DATABASE_URL = os.environ.get('DATABASE_URL')
 
-# Si no existe, usa la URL que funciona (la nueva)
+DATABASE_URL = os.environ.get('DATABASE_URL')
 if not DATABASE_URL:
-    DATABASE_URL = "postgresql://dantepropiedades_db_ucly_user:lXJBs0o3hGelsXG3y9EKA2giwZyBdcUZ@dpg-da8e1gon74is73dm4d90-a.oregon-postgres.render.com:5432/dantepropiedades_db_ucly?sslmode=require"
+    print("❌ Error: DATABASE_URL no configurado")
+    sys.exit(1)
+
 
 # ELIMINA CUALQUIER LÍNEA QUE AGREGE ?sslmode=disable o ?sslmode=allow
 # No debe haber nada como: if 'sslmode' not in DATABASE_URL: DATABASE_URL += '?sslmode=disable'
