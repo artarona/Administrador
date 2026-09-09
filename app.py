@@ -403,8 +403,18 @@ def send_email():
     if token != ADMIN_TOKEN:
         return jsonify({'error': 'Token inválido'}), 401
 
-    if not all([SMTP_HOST, SMTP_USER, SMTP_PASSWORD, SMTP_FROM]):
-        return jsonify({'error': 'El servicio de correo no está configurado en el servidor'}), 503
+    missing_settings = [
+        name for name, value in {
+            'SMTP_HOST': SMTP_HOST,
+            'SMTP_USER': SMTP_USER,
+            'SMTP_PASSWORD': SMTP_PASSWORD,
+            'SMTP_FROM': SMTP_FROM
+        }.items() if not value
+    ]
+    if missing_settings:
+        return jsonify({
+            'error': 'Falta configurar: ' + ', '.join(missing_settings)
+        }), 503
 
     try:
         data = request.get_json() or {}
