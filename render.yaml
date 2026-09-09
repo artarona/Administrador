@@ -9,6 +9,16 @@ services:
         value: production
       - key: ADMIN_TOKEN
         value: "2205"
+      - key: SMTP_HOST
+        sync: false
+      - key: SMTP_PORT
+        value: "587"
+      - key: SMTP_USER
+        sync: false
+      - key: SMTP_PASSWORD
+        sync: false
+      - key: SMTP_FROM
+        sync: false
     disk:
       name: contactos-data
       size: 1GB

@@ -480,6 +480,9 @@
                     <button class="btn btn-primary" onclick="refrescarDatos()">
                         <i class="fas fa-sync-alt"></i> Actualizar
                     </button>
+                    <button class="btn btn-success" onclick="abrirCorreoModal()">
+                        <i class="fas fa-envelope"></i> Enviar correo
+                    </button>
                     <button class="btn btn-warning" onclick="importarLocalStorage()" title="Importar 63 registros del localStorage">
                         <i class="fas fa-download"></i> Importar localStorage
                     </button>
@@ -532,6 +535,30 @@
                     </button>
                 </div>
             </form>
+        </div>
+    </div>
+
+    <!-- MODAL DE ENVÍO DE CORREO -->
+    <div id="email-modal" class="modal hidden">
+        <div class="modal-content">
+            <h3><i class="fas fa-envelope"></i> Enviar correo</h3>
+            <form id="email-form">
+                <label for="email-contacto">Contacto</label>
+                <select id="email-contacto" required></select>
+                <label for="email-asunto">Asunto</label>
+                <input type="text" id="email-asunto" placeholder="Asunto del correo" required />
+                <label for="email-mensaje">Mensaje</label>
+                <textarea id="email-mensaje" placeholder="Escriba el mensaje..." required></textarea>
+                <div class="contacto-actions-row" style="margin-top: 15px;">
+                    <button type="submit" class="btn btn-success">
+                        <i class="fas fa-paper-plane"></i> Enviar
+                    </button>
+                    <button type="button" class="btn btn-secondary" onclick="cerrarCorreoModal()">
+                        <i class="fas fa-times"></i> Cancelar
+                    </button>
+                </div>
+            </form>
+            <div id="email-message"></div>
         </div>
     </div>
 
@@ -644,6 +671,43 @@
                 `;
             });
             container.innerHTML = html;
+        }
+
+        function abrirCorreoModal() {
+            const select = document.getElementById('email-contacto');
+            const contactosConEmail = contactos.filter(contacto => contacto.email);
+            select.innerHTML = contactosConEmail.length
+                ? contactosConEmail.map(contacto => `<option value="${contacto.id}">${contacto.nombre} - ${contacto.email}</option>`).join('')
+                : '<option value="">No hay contactos con correo</option>';
+            document.getElementById('email-modal').classList.remove('hidden');
+        }
+
+        function cerrarCorreoModal() {
+            document.getElementById('email-modal').classList.add('hidden');
+            document.getElementById('email-form').reset();
+            document.getElementById('email-message').innerHTML = '';
+        }
+
+        async function enviarCorreo(event) {
+            event.preventDefault();
+            const messageDiv = document.getElementById('email-message');
+            const boton = event.target.querySelector('button[type="submit"]');
+            boton.disabled = true;
+            messageDiv.innerHTML = '<div class="loading">Enviando correo...</div>';
+
+            try {
+                const response = await apiRequest('send-email', 'POST', {
+                    contacto_id: document.getElementById('email-contacto').value,
+                    asunto: document.getElementById('email-asunto').value,
+                    mensaje: document.getElementById('email-mensaje').value
+                });
+                messageDiv.innerHTML = `<div class="success"><i class="fas fa-check-circle"></i> ${response.message}</div>`;
+                setTimeout(cerrarCorreoModal, 1800);
+            } catch (error) {
+                messageDiv.innerHTML = `<div class="error"><i class="fas fa-exclamation-circle"></i> ${error.message}</div>`;
+            } finally {
+                boton.disabled = false;
+            }
         }
 
         function editarContacto(id) {
@@ -831,6 +895,7 @@
         // 🎯 EVENT LISTENERS
         document.getElementById('contacto-form').addEventListener('submit', agregarContacto);
         document.getElementById('edit-form').addEventListener('submit', actualizarContacto);
+        document.getElementById('email-form').addEventListener('submit', enviarCorreo);
         document.getElementById('admin-password').addEventListener('keypress', function (e) {
             if (e.key === 'Enter') verificarLogin();
         });

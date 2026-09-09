@@ -1,4 +1,4 @@
-﻿#!/usr/bin/env python3
+#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
 """
@@ -8,6 +8,9 @@ SISTEMA ADMINISTRATIVO DANTEPROPIEDADES - VERSIÓN MEJORADA CON DEBUG
 import os
 import psycopg2
 from datetime import datetime
+from email.message import EmailMessage
+import smtplib
+from email.utils import parseaddr
 from flask import Flask, request, jsonify, send_from_directory
 from flask_cors import CORS
 import logging
@@ -26,6 +29,11 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 ADMIN_TOKEN = os.environ.get('ADMIN_TOKEN', '2205')
+SMTP_HOST = os.environ.get('SMTP_HOST', '')
+SMTP_PORT = int(os.environ.get('SMTP_PORT', '587'))
+SMTP_USER = os.environ.get('SMTP_USER', '')
+SMTP_PASSWORD = os.environ.get('SMTP_PASSWORD', '')
+SMTP_FROM = os.environ.get('SMTP_FROM', SMTP_USER)
 
 
 # ============================================================================
@@ -385,6 +393,71 @@ def delete_contact():
     finally:
         if conn:
             conn.close()
+
+@app.route('/admin/send-email', methods=['POST', 'OPTIONS'])
+def send_email():
+    if request.method == 'OPTIONS':
+        return '', 200
+
+    token = request.args.get('token', '')
+    if token != ADMIN_TOKEN:
+        return jsonify({'error': 'Token inválido'}), 401
+
+    if not all([SMTP_HOST, SMTP_USER, SMTP_PASSWORD, SMTP_FROM]):
+        return jsonify({'error': 'El servicio de correo no está configurado en el servidor'}), 503
+
+    try:
+        data = request.get_json() or {}
+        contacto_id = str(data.get('contacto_id', '')).strip()
+        asunto = str(data.get('asunto', '')).strip()
+        mensaje = str(data.get('mensaje', '')).strip()
+    except (TypeError, ValueError):
+        return jsonify({'error': 'Datos inválidos'}), 400
+
+    if not contacto_id or not asunto or not mensaje:
+        return jsonify({'error': 'Contacto, asunto y mensaje son requeridos'}), 400
+
+    conn = get_db()
+    if not conn:
+        return jsonify({'error': 'Error de conexión a DB'}), 500
+
+    try:
+        cursor = conn.cursor()
+        cursor.execute(
+            "SELECT nombre, email FROM contactos WHERE timestamp = %s",
+            (contacto_id,)
+        )
+        contacto = cursor.fetchone()
+        cursor.close()
+
+        if not contacto:
+            return jsonify({'error': 'Contacto no encontrado'}), 404
+
+        nombre, destinatario = contacto
+        if not destinatario or parseaddr(destinatario)[1] != destinatario:
+            return jsonify({'error': 'El contacto no tiene un correo electrónico válido'}), 400
+
+        email = EmailMessage()
+        email['From'] = SMTP_FROM
+        email['To'] = destinatario
+        email['Subject'] = asunto
+        email.set_content(mensaje)
+
+        with smtplib.SMTP(SMTP_HOST, SMTP_PORT, timeout=20) as smtp:
+            smtp.starttls()
+            smtp.login(SMTP_USER, SMTP_PASSWORD)
+            smtp.send_message(email)
+
+        logger.info(f"Correo enviado a {destinatario} para el contacto {contacto_id}")
+        return jsonify({'success': True, 'message': f'Correo enviado a {nombre or destinatario}'})
+    except smtplib.SMTPException as error:
+        logger.error(f"Error SMTP enviando correo: {error}")
+        return jsonify({'error': 'No se pudo enviar el correo. Revise la configuración SMTP.'}), 502
+    except Exception as error:
+        logger.error(f"Error enviando correo: {error}")
+        return jsonify({'error': 'Error inesperado al enviar el correo'}), 500
+    finally:
+        conn.close()
 
 @app.route('/admin/clear', methods=['DELETE', 'OPTIONS'])
 def clear_all():
