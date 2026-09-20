@@ -195,19 +195,38 @@ def get_contacts():
     try:
         cursor = conn.cursor()
         cursor.execute("""
-            SELECT timestamp, nombre, email, telefono, notas as mensaje, fecha_creacion
-            FROM contactos 
+            SELECT 
+                timestamp, nombre, email, telefono, telefono_alt, documento,
+                origen, notas, interes, presupuesto, pagina_origen,
+                ip_address, user_agent, canal_chat, search_performed, results_count,
+                total_consultas_chat, total_formularios,
+                fecha_creacion, fecha_actualizacion
+            FROM dante.contactos 
             ORDER BY fecha_creacion DESC
         """)
         contacts = []
         for row in cursor.fetchall():
             contacts.append({
-                'id': row[0],            # timestamp
+                'id': row[0],
                 'nombre': row[1] or '',
                 'email': row[2] or '',
                 'telefono': row[3] or '',
-                'mensaje': row[4] or '',  # notas
-                'fecha_creacion': row[5].isoformat() if row[5] else ''
+                'telefono_alt': row[4] or '',
+                'documento': row[5] or '',
+                'origen': row[6] or '',
+                'mensaje': row[7] or '',
+                'interes': row[8] or '',
+                'presupuesto': row[9] or '',
+                'pagina_origen': row[10] or '',
+                'ip_address': row[11] or '',
+                'user_agent': row[12] or '',
+                'canal_chat': row[13] or '',
+                'search_performed': row[14],
+                'results_count': row[15] or 0,
+                'total_consultas_chat': row[16] or 0,
+                'total_formularios': row[17] or 0,
+                'fecha_creacion': row[18].isoformat() if row[18] else '',
+                'fecha_actualizacion': row[19].isoformat() if row[19] else ''
             })
         
         cursor.close()
