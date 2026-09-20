@@ -264,35 +264,62 @@ def add_contact():
         return jsonify({'error': 'Error de conexión a la base de datos'}), 500
     
     try:
-        timestamp = str(int(time.time() * 1000))
         cursor = conn.cursor()
+        
+        # 1. Buscar o crear la persona en core.personas
         cursor.execute("""
-            INSERT INTO contactos (timestamp, nombre, email, telefono, notas, estado)
-            VALUES (%s, %s, %s, %s, %s, 'nuevo')
-        """, (timestamp, nombre, email, telefono, mensaje))
+            SELECT id FROM core.personas 
+            WHERE LOWER(email) = LOWER(%s)
+            LIMIT 1
+        """, (email,))
+        persona_row = cursor.fetchone()
+        
+        if persona_row:
+            persona_id = persona_row[0]
+            cursor.execute("""
+                UPDATE core.personas 
+                SET nombre = %s, telefono = %s, updated_at = CURRENT_TIMESTAMP
+                WHERE id = %s
+            """, (nombre, telefono, persona_id))
+            logger.info(f"✅ Persona actualizada: id={persona_id}, email={email}")
+        else:
+            cursor.execute("""
+                INSERT INTO core.personas (nombre, email, telefono, origen)
+                VALUES (%s, %s, %s, 'admin')
+                RETURNING id
+            """, (nombre, email, telefono))
+            persona_id = cursor.fetchone()[0]
+            logger.info(f"✅ Persona creada: id={persona_id}, email={email}")
+        
+        # 2. Guardar el mensaje como formulario en dante.formularios (si hay mensaje)
+        if mensaje:
+            cursor.execute("""
+                INSERT INTO dante.formularios (persona_id, mensaje)
+                VALUES (%s, %s)
+            """, (persona_id, mensaje))
         
         conn.commit()
         cursor.close()
         conn.close()
         
-        logger.info(f"✅ Contacto agregado exitosamente: {timestamp} - {email}")
+        logger.info(f"✅ Contacto agregado exitosamente: id={persona_id} - {email}")
         
         return jsonify({
             'success': True,
             'message': 'Contacto agregado exitosamente',
-            'id': timestamp,
+            'id': persona_id,
             'email': email
         })
         
-    except psycopg2.IntegrityError as e:
-        logger.error(f"Error de integridad: {e}")
-        return jsonify({'error': 'El timestamp ya existe (contacto duplicado)'}), 400
     except Exception as e:
         logger.error(f"Error inesperado: {e}")
-        return jsonify({'error': f'Error en el servidor: {str(e)}'}), 500
-    finally:
         if conn:
+            conn.rollback()
             conn.close()
+        return jsonify({'error': f'Error en el servidor: {str(e)}'}), 500
+
+
+
 
 @app.route('/admin/update', methods=['PUT', 'OPTIONS'])
 def update_contact():
