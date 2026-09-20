@@ -270,10 +270,16 @@ def add_contact():
     if not data:
         return jsonify({'error': 'No hay datos'}), 400
     
+    # Extraer y limpiar campos
     nombre = data.get('nombre', '').strip()
     email = data.get('email', '').strip().lower()
     telefono = data.get('telefono', '').strip()
     mensaje = data.get('mensaje', '').strip()
+    # Campos nuevos del formulario
+    interes = data.get('interes', '').strip()
+    presupuesto = data.get('presupuesto', '').strip()
+    pagina = data.get('pagina', '').strip()
+    user_agent = data.get('user_agent', '').strip()
     
     if not nombre or not email:
         return jsonify({'error': 'Nombre y email son requeridos'}), 400
@@ -304,24 +310,24 @@ def add_contact():
         else:
             cursor.execute("""
                 INSERT INTO core.personas (nombre, email, telefono, origen)
-                VALUES (%s, %s, %s, 'admin')
+                VALUES (%s, %s, %s, 'formulario')
                 RETURNING id
             """, (nombre, email, telefono))
             persona_id = cursor.fetchone()[0]
             logger.info(f"✅ Persona creada: id={persona_id}, email={email}")
         
-        # 2. Guardar el mensaje como formulario en dante.formularios (si hay mensaje)
-        if mensaje:
-            cursor.execute("""
-                INSERT INTO dante.formularios (persona_id, mensaje)
-                VALUES (%s, %s)
-            """, (persona_id, mensaje))
+        # 2. Guardar en dante.formularios con TODOS los campos
+        cursor.execute("""
+            INSERT INTO dante.formularios 
+            (persona_id, mensaje, interes, presupuesto, pagina_origen, user_agent)
+            VALUES (%s, %s, %s, %s, %s, %s)
+        """, (persona_id, mensaje, interes, presupuesto, pagina, user_agent))
         
         conn.commit()
         cursor.close()
         conn.close()
         
-        logger.info(f"✅ Contacto agregado exitosamente: id={persona_id} - {email}")
+        logger.info(f"✅ Contacto agregado: id={persona_id}, email={email}, interes={interes}, presupuesto={presupuesto}")
         
         return jsonify({
             'success': True,
@@ -336,7 +342,6 @@ def add_contact():
             conn.rollback()
             conn.close()
         return jsonify({'error': f'Error en el servidor: {str(e)}'}), 500
-
 
 
 
