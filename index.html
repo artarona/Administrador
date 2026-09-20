@@ -682,7 +682,7 @@
         // FUNCIONES DEL FRONTEND (adaptadas para usar id)
         // ============================================================================
 
-        function mostrarContactos() {
+                function mostrarContactos() {
             const container = document.getElementById('contactos-list');
             if (contactos.length === 0) {
                 container.innerHTML = '<p><i class="fas fa-inbox"></i> No hay contactos registrados</p>';
@@ -690,14 +690,54 @@
             }
             let html = '';
             contactos.forEach(contacto => {
+                const origenBadge = contacto.origen 
+                    ? `<span class="badge badge-${contacto.origen}">${contacto.origen}</span>` 
+                    : '';
+                const canalBadge = contacto.canal_chat 
+                    ? `<span class="badge badge-canal">${contacto.canal_chat}</span>` 
+                    : '';
+                const interesBadge = contacto.interes 
+                    ? `<span class="badge badge-info">🎯 ${contacto.interes}</span>` 
+                    : '';
+                const presupuestoBadge = contacto.presupuesto 
+                    ? `<span class="badge badge-money">💰 ${contacto.presupuesto}</span>` 
+                    : '';
+                const consultasBadge = contacto.total_consultas_chat > 0 
+                    ? `<span class="badge badge-count">💬 ${contacto.total_consultas_chat} consultas</span>` 
+                    : '';
+                const formulariosBadge = contacto.total_formularios > 0 
+                    ? `<span class="badge badge-count">📋 ${contacto.total_formularios} formularios</span>` 
+                    : '';
+
+                const fechaCreacion = contacto.fecha_creacion 
+                    ? new Date(contacto.fecha_creacion).toLocaleString('es-AR') 
+                    : '';
+                const fechaActualizacion = contacto.fecha_actualizacion && contacto.fecha_actualizacion !== contacto.fecha_creacion
+                    ? `<small><i class="fas fa-clock"></i> Actualizado: ${new Date(contacto.fecha_actualizacion).toLocaleString('es-AR')}</small>`
+                    : '';
+
                 html += `
                     <div class="contacto-item">
                         <div class="contacto-info">
-                            <strong>${contacto.nombre}</strong>
+                            <strong>
+                                ${contacto.nombre}
+                                ${origenBadge}
+                                ${canalBadge}
+                            </strong>
                             <span><i class="fas fa-envelope"></i> ${contacto.email}</span>
-                            <span><i class="fas fa-phone"></i> ${contacto.telefono || 'No especificado'}</span>
+                            <span><i class="fas fa-phone"></i> ${contacto.telefono || 'No especificado'}${contacto.telefono_alt ? ' / ' + contacto.telefono_alt : ''}</span>
+                            ${contacto.documento ? `<span><i class="fas fa-id-card"></i> ${contacto.documento}</span>` : ''}
                             <span><i class="fas fa-comment"></i> ${contacto.mensaje || 'Sin mensaje'}</span>
-                            <small><i class="fas fa-calendar"></i> ${new Date(contacto.fecha_creacion).toLocaleString()}</small>
+                            <div class="badges-row">
+                                ${interesBadge}
+                                ${presupuestoBadge}
+                                ${consultasBadge}
+                                ${formulariosBadge}
+                            </div>
+                            ${contacto.pagina_origen ? `<small><i class="fas fa-link"></i> Desde: ${contacto.pagina_origen.substring(0, 60)}</small>` : ''}
+                            ${contacto.ip_address ? `<small><i class="fas fa-network-wired"></i> IP: ${contacto.ip_address}</small>` : ''}
+                            <small><i class="fas fa-calendar"></i> ${fechaCreacion}</small>
+                            ${fechaActualizacion}
                         </div>
                         <div class="contacto-actions">
                             <div class="contacto-actions-row">
