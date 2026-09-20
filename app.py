@@ -75,12 +75,14 @@ CORS(app)
 
 def get_db():
     try:
-        logger.info("Intentando conectar a PostgreSQL...")
         conn = psycopg2.connect(DATABASE_URL, connect_timeout=10)
-        logger.info("✅ Conexión a PostgreSQL exitosa")
+        cur = conn.cursor()
+        cur.execute("SET search_path TO dante, core, crm, public;")
+        conn.commit()
+        cur.close()
         return conn
     except Exception as e:
-        logger.error(f"❌ Error PostgreSQL: {str(e)}")
+        logger.error(f"❌ Error: {e}")
         return None
 
 def ensure_table_exists():
