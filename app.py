@@ -353,24 +353,26 @@ def update_contact():
     
     try:
         cursor = conn.cursor()
+        persona_id = int(contacto_id)
         
-        # El contacto_id es el id numérico de core.personas
+        # ✅ AHORA SÍ: actualizar nombre, email, telefono Y notas en core.personas
         cursor.execute("""
             UPDATE core.personas 
             SET nombre = %s, 
                 email = %s, 
                 telefono = %s, 
+                notas = %s,
                 updated_at = CURRENT_TIMESTAMP
             WHERE id = %s
             RETURNING id
-        """, (nombre, email, telefono, int(contacto_id)))
+        """, (nombre, email, telefono, mensaje, persona_id))
         
         if cursor.rowcount == 0:
             cursor.close()
             conn.close()
             return jsonify({'error': 'Contacto no encontrado'}), 404
         
-        # Si hay mensaje nuevo, actualizar el último formulario asociado
+        # Extra: si existe un formulario asociado, mantener su mensaje sincronizado
         if mensaje:
             cursor.execute("""
                 UPDATE dante.formularios 
@@ -381,13 +383,13 @@ def update_contact():
                     ORDER BY created_at DESC 
                     LIMIT 1
                 )
-            """, (mensaje, int(contacto_id)))
+            """, (mensaje, persona_id))
         
         conn.commit()
         cursor.close()
         conn.close()
         
-        logger.info(f"✅ Contacto actualizado: id={contacto_id}")
+        logger.info(f"✅ Contacto actualizado: id={persona_id}")
         
         return jsonify({
             'success': True,
