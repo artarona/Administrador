@@ -353,20 +353,41 @@ def update_contact():
     
     try:
         cursor = conn.cursor()
+        
+        # El contacto_id es el id numérico de core.personas
         cursor.execute("""
-            UPDATE contactos 
-            SET nombre = %s, email = %s, telefono = %s, notas = %s,
-                fecha_actualizacion = CURRENT_TIMESTAMP
-            WHERE timestamp = %s
-            RETURNING timestamp
-        """, (nombre, email, telefono, mensaje, contacto_id))
+            UPDATE core.personas 
+            SET nombre = %s, 
+                email = %s, 
+                telefono = %s, 
+                updated_at = CURRENT_TIMESTAMP
+            WHERE id = %s
+            RETURNING id
+        """, (nombre, email, telefono, int(contacto_id)))
         
         if cursor.rowcount == 0:
+            cursor.close()
+            conn.close()
             return jsonify({'error': 'Contacto no encontrado'}), 404
+        
+        # Si hay mensaje nuevo, actualizar el último formulario asociado
+        if mensaje:
+            cursor.execute("""
+                UPDATE dante.formularios 
+                SET mensaje = %s 
+                WHERE id = (
+                    SELECT id FROM dante.formularios 
+                    WHERE persona_id = %s 
+                    ORDER BY created_at DESC 
+                    LIMIT 1
+                )
+            """, (mensaje, int(contacto_id)))
         
         conn.commit()
         cursor.close()
         conn.close()
+        
+        logger.info(f"✅ Contacto actualizado: id={contacto_id}")
         
         return jsonify({
             'success': True,
@@ -374,11 +395,12 @@ def update_contact():
         })
         
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
-    finally:
+        logger.error(f"Error en update_contact: {e}")
         if conn:
+            conn.rollback()
             conn.close()
-
+        return jsonify({'error': str(e)}), 500
+    
 @app.route('/admin/delete', methods=['DELETE', 'OPTIONS'])
 def delete_contact():
     if request.method == 'OPTIONS':
@@ -403,14 +425,39 @@ def delete_contact():
     
     try:
         cursor = conn.cursor()
-        cursor.execute("DELETE FROM contactos WHERE timestamp = %s RETURNING timestamp", (contacto_id,))
+        
+        # El contacto_id es el id numérico de core.personas
+        persona_id = int(contacto_id)
+        
+        # Borrar registros relacionados primero (por si no hay ON DELETE CASCADE)
+        cursor.execute("DELETE FROM dante.formularios WHERE persona_id = %s", (persona_id,))
+        cursor.execute("DELETE FROM dante.consultas_chat WHERE persona_id = %s", (persona_id,))
+        
+        # Borrar de crm.citas (que puede referenciar la persona)
+        cursor.execute("DELETE FROM crm.citas WHERE persona_id = %s", (persona_id,))
+        
+        # Borrar conversaciones del CRM (con sus mensajes, estados, busquedas)
+        cursor.execute("SELECT id FROM crm.conversaciones WHERE persona_id = %s", (persona_id,))
+        conv_ids = [row[0] for row in cursor.fetchall()]
+        for conv_id in conv_ids:
+            cursor.execute("DELETE FROM crm.mensajes WHERE conversacion_id = %s", (conv_id,))
+            cursor.execute("DELETE FROM crm.estados_usuario WHERE conversacion_id = %s", (conv_id,))
+            cursor.execute("DELETE FROM crm.busquedas WHERE conversacion_id = %s", (conv_id,))
+        cursor.execute("DELETE FROM crm.conversaciones WHERE persona_id = %s", (persona_id,))
+        
+        # Finalmente, borrar la persona
+        cursor.execute("DELETE FROM core.personas WHERE id = %s RETURNING id", (persona_id,))
         
         if cursor.rowcount == 0:
+            cursor.close()
+            conn.close()
             return jsonify({'error': 'Contacto no encontrado'}), 404
         
         conn.commit()
         cursor.close()
         conn.close()
+        
+        logger.info(f"✅ Contacto eliminado: id={contacto_id}")
         
         return jsonify({
             'success': True,
@@ -418,10 +465,15 @@ def delete_contact():
         })
         
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
-    finally:
+        logger.error(f"Error en delete_contact: {e}")
         if conn:
+            conn.rollback()
             conn.close()
+        return jsonify({'error': str(e)}), 500    
+
+
+
+    
 
 @app.route('/admin/send-email', methods=['POST', 'OPTIONS'])
 def send_email():
